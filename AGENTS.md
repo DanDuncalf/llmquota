@@ -103,6 +103,20 @@ src/
 - Keep comments explaining *why* (provider quirks, endpoint behavior), matching
   the existing dense-header style.
 
+## Running as a Windows service (this machine)
+
+The dashboard is registered as a hidden logon task so it outlives terminals and
+agent sessions:
+
+- Task: **`LLM Quota Dashboard`** — trigger AtLogOn for the current user.
+- Action: `wscript.exe scripts/start-service.vbs` → `scripts/run-service.cmd` →
+  `npm run dev`, logging to `data/service.log`.
+- Register or refresh the task:
+  `powershell -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1`
+- Start/stop: `Start-ScheduledTask -TaskName 'LLM Quota Dashboard'` /
+  `Stop-ScheduledTask -TaskName 'LLM Quota Dashboard'`
+- `run-service.cmd` refuses to start if `:8787` is already listening.
+
 ## Secrets and credentials
 
 - `.env` is gitignored and must stay that way. `.env.example` contains only
