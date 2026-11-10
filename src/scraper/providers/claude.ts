@@ -115,7 +115,7 @@ function cacheAgeMs(cache: ClaudeUsageCache): number {
 
 /** The scraper only renders these two windows; a cache without them is useless. */
 function hasWindows(usage: ClaudeUsageResponse | null | undefined): boolean {
-  return !!(usage?.five_hour || usage?.seven_day);
+  return !!(usage?.five_hour?.resets_at || usage?.seven_day?.resets_at);
 }
 
 /** Compact timestamp for the row label, e.g. "Nov 10, 10:14 AM". */
@@ -246,7 +246,10 @@ function buildBuckets(
 ): RawBucket[] {
   const buckets: RawBucket[] = [];
 
-  if (usage.five_hour) {
+  // Anthropic reports a window with `resets_at: null` when there is no active
+  // window (e.g. the weekly cap is exhausted). Rendering that as a 0% window
+  // makes the calculator call it CRITICAL and mark it ★ NEXT, so skip it.
+  if (usage.five_hour?.resets_at) {
     buckets.push(
       windowBucket(
         'claude-5h',
@@ -260,7 +263,7 @@ function buildBuckets(
       ),
     );
   }
-  if (usage.seven_day) {
+  if (usage.seven_day?.resets_at) {
     buckets.push(
       windowBucket(
         'claude-weekly',
