@@ -82,6 +82,11 @@ src/
 - **Label quota windows by duration, not position.** ChatGPT plans differ:
   `primary_window` may be the 7-day window. Derive labels from
   `limit_window_seconds`.
+- **Claude's usage endpoint rate-limits (429).** `claude.ts` keeps the last
+  good payload in `data/claude-usage-cache.json`, reuses it with a `cached …`
+  row label, polls at most every `CLAUDE_MIN_FETCH_INTERVAL_MS` (5 min), and
+  backs off `CLAUDE_RATE_LIMIT_BACKOFF_MS` (10 min) after a 429. Do not remove
+  this and go back to "one failed fetch = UNAVAILABLE".
 - **Do not replace the Claude web fetch's `curl` call with Node `fetch`** —
   claude.ai's Cloudflare protection rejects Node's TLS fingerprint.
 - **Currency units differ.** Kimi's backup wallet is reported in micro-cents

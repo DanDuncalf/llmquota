@@ -179,6 +179,12 @@ Claude card can break with one of these:
 
 **Notes**
 
+- Anthropic rate-limits the OAuth usage endpoint (HTTP 429). The scraper keeps
+  the last good reading in `data/claude-usage-cache.json`, shows it with a
+  `cached …` label instead of blanking the card, polls at most once every
+  5 minutes, and backs off for 10 minutes after a 429. Tune with
+  `CLAUDE_MIN_FETCH_INTERVAL_MS`, `CLAUDE_RATE_LIMIT_BACKOFF_MS`, and
+  `CLAUDE_CACHE_MAX_AGE_MS`.
 - `sessionKey` dies when you sign out of claude.ai — re-grab and update `.env`.
 - The Claude **web** fetch already uses `curl` instead of Node `fetch`, because
   claude.ai's Cloudflare bot protection 403s Node's undici TLS fingerprint.
