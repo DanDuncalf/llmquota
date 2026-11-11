@@ -119,7 +119,8 @@ agent sessions:
 - Register or refresh the task:
   `powershell -ExecutionPolicy Bypass -File scripts/register-startup-task.ps1`
 - Start/stop: `Start-ScheduledTask -TaskName 'LLM Quota Dashboard'` /
-  `Stop-ScheduledTask -TaskName 'LLM Quota Dashboard'`
+  `scripts\stop-service.cmd` (stops the task and kills the npm/node tree —
+  stopping the task alone leaves the children running).
 - `run-service.cmd` refuses to start if `:8787` is already listening.
 
 ## Secrets and credentials
