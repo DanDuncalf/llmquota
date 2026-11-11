@@ -96,6 +96,11 @@ src/
   `PROVIDER_LABEL` in `src/types/quota.ts`, the Zod enum in
   `src/server/index.ts`, `PROVIDER_META` in `src/ui/lib/meta.ts`, and the docs
   in `README.md`.
+- **DeepSeek token usage is day-granular.** It comes from
+  `platform.deepseek.com/api/v0/usage/amount`, authenticated with the browser
+  session token `DEEPSEEK_PLATFORM_TOKEN` (not the `sk-` API key). Only the
+  24h column is populated (meaning today so far); 1h/5h stay empty. If the
+  token expires, the card keeps showing the balance and the note explains why.
 - **Adding a usage log source** means one entry in `SOURCES` in
   `src/scraper/usage/local-usage.ts` (`matchName` + `parse`).
 - UI is React 18 function components + Tailwind. No state library; small

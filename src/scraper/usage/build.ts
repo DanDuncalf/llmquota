@@ -12,12 +12,14 @@ import type { Provider, ProviderModels } from '../../types/quota.js';
 import type { ModelRollup, LocalUsageResult } from './local-usage.js';
 import { emptyTally } from './local-usage.js';
 import type { CatalogResult, MonthlyUsage } from './catalogs.js';
+import type { DeepSeekPlatformUsage } from './deepseek-platform.js';
 
 interface BuildInput {
   catalogs: Record<Provider, CatalogResult>;
   rollups: ModelRollup[];
   monthly: MonthlyUsage | null;
   local: LocalUsageResult;
+  deepseekPlatform?: DeepSeekPlatformUsage | null;
 }
 
 function usageSourceFor(provider: Provider, hasLocal: boolean): string {
@@ -46,7 +48,7 @@ function lastActivityFor(provider: Provider, local: LocalUsageResult): string | 
 }
 
 export function buildProviderModels(input: BuildInput): ProviderModels[] {
-  const { catalogs, rollups, monthly, local } = input;
+  const { catalogs, rollups, monthly, local, deepseekPlatform } = input;
 
   // Gemini quota cards are account-scoped; their model list is already the
   // quota row list, so a second per-provider usage table would be misleading.
@@ -54,7 +56,11 @@ export function buildProviderModels(input: BuildInput): ProviderModels[] {
 
   return providers.map((provider) => {
     const cat = catalogs[provider];
-    const observedRolls = rollups.filter((r) => r.provider === provider);
+    const localRolls = rollups.filter((r) => r.provider === provider);
+    const platformDeepSeek =
+      provider === 'deepseek' ? deepseekPlatform?.rollups ?? [] : [];
+    const platformUsed = platformDeepSeek.length > 0;
+    const observedRolls = platformUsed ? platformDeepSeek : localRolls;
 
     // Union the advertised catalog with anything we've actually observed, so a
     // model you use but that isn't in the catalog still shows up. Compare on
@@ -88,6 +94,12 @@ export function buildProviderModels(input: BuildInput): ProviderModels[] {
     if (provider === 'deepinfra' && !monthly) {
       notes.push('no token data returned by billing API');
     }
+    if (platformUsed) {
+      notes.push('platform usage is a calendar-day bucket (today), not a rolling 24h; 1h/5h unavailable');
+    }
+    if (provider === 'deepseek' && deepseekPlatform?.error) {
+      notes.push(deepseekPlatform.error);
+    }
 
     return {
       provider,
@@ -95,8 +107,12 @@ export function buildProviderModels(input: BuildInput): ProviderModels[] {
       catalog_labels: cat.labels,
       catalog_source,
       usage,
-      usage_source: usageSourceFor(provider, observedRolls.length > 0),
-      last_activity: lastActivityFor(provider, local),
+      usage_source: platformUsed
+        ? 'DeepSeek platform API (today)'
+        : usageSourceFor(provider, localRolls.length > 0),
+      last_activity: platformUsed
+        ? new Date().toISOString()
+        : lastActivityFor(provider, local),
       monthly: provider === 'deepinfra' && monthly ? monthly : undefined,
       note: notes.length > 0 ? notes.join(' · ') : undefined,
     } satisfies ProviderModels;

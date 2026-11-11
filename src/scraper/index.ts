@@ -34,6 +34,7 @@ import { scrapeDeepInfra } from './providers/deepinfra.js';
 import { scrapeQwen } from './providers/qwen.js';
 import { collectLocalUsage, rollup } from './usage/local-usage.js';
 import { fetchCatalogs, fetchDeepInfraMonthly } from './usage/catalogs.js';
+import { fetchDeepSeekPlatformUsage } from './usage/deepseek-platform.js';
 import { buildProviderModels } from './usage/build.js';
 import type { QuotaStateFile } from '../types/quota.js';
 
@@ -62,7 +63,7 @@ async function collectReal(): Promise<QuotaStateFile> {
 
   // Provider quota windows, provider model catalogs, and local token usage are
   // all independent — run them together.
-  const [quotaResults, localUsage, catalogs, diMonthly] = await Promise.all([
+  const [quotaResults, localUsage, catalogs, diMonthly, deepseekPlatform] = await Promise.all([
     Promise.all([
       safeCall('claude', scrapeClaude, []),
       safeCall('chatgpt', scrapeChatGPT, []),
@@ -82,6 +83,7 @@ async function collectReal(): Promise<QuotaStateFile> {
     }),
     safeCall('catalogs', fetchCatalogs, null),
     safeCall('deepinfra-monthly', fetchDeepInfraMonthly, null),
+    safeCall('deepseek-platform', fetchDeepSeekPlatformUsage, null),
   ]);
 
   const raw = quotaResults.flat();
@@ -93,6 +95,7 @@ async function collectReal(): Promise<QuotaStateFile> {
         rollups: rollup(localUsage.events),
         monthly: diMonthly,
         local: localUsage,
+        deepseekPlatform,
       })
     : undefined;
 

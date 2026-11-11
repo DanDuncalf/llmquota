@@ -131,6 +131,7 @@ Environment variables already present in your OS/user environment always win, so
 | **MiniMax** | MiniMax coding plan | `MINIMAX_API_KEY` (`sk-cp-…`) | `api.minimax.io/v1/token_plan/remains` |
 | **DeepInfra** | API key | `DEEPINFRA_API_KEY` | `api.deepinfra.com/payment/usage` |
 | **DeepSeek** | API key | `DEEPSEEK_API_KEY` | `api.deepseek.com/user/balance` |
+| **DeepSeek usage** | Platform dashboard | `DEEPSEEK_PLATFORM_TOKEN` (browser session token, not the API key) | `platform.deepseek.com/api/v0/usage/amount` |
 | **Qwen** | *no public API* | — (read from `~/.qwen/settings.json`) | — |
 
 ### Claude — needs one manual step
@@ -300,6 +301,7 @@ from the **local CLI logs** these agents already write:
 | Codex CLI | `~/.codex/sessions/**/*.jsonl` | `token_count` → `info.last_token_usage` (per-turn delta) |
 | Kimi Code | `~/.kimi-code/sessions/**/wire.jsonl` | `usage.record` → `{inputOther, output, inputCacheRead, inputCacheCreation}` |
 | Qwen CLI | `~/.qwen/projects/**/chats/*.jsonl` | `usageMetadata.{promptTokenCount,candidatesTokenCount,thoughtsTokenCount,cachedContentTokenCount}` |
+| DeepSeek platform | `DEEPSEEK_PLATFORM_TOKEN` (not a log) | daily per-model `PROMPT_CACHE_HIT_TOKEN` / `PROMPT_CACHE_MISS_TOKEN` / `RESPONSE_TOKEN` |
 
 Notes and caveats:
 
@@ -308,6 +310,9 @@ Notes and caveats:
 - **Cache reads dominate.** Agentic coding re-sends a large context every turn,
   so "22 M tokens in an hour" typically means ~22 M of *cache reads* plus a few
   hundred k of real input/output. The hover tooltip breaks it down.
+- **DeepSeek is day-granular.** Token counts come from platform.deepseek.com's
+  daily buckets (authenticated with the browser session token, not the `sk-`
+  API key), so its 24h column means *today so far*; 1h/5h are unavailable.
 - **Granularity.** Local logs give exact 1h/5h/24h. DeepInfra's billing API is
   the only provider that reports tokens itself, but only **monthly** — shown as a
   separate `monthly (YYYY.MM)` line rather than a fake 24h figure.
