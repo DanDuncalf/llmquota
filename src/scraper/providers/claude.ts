@@ -58,7 +58,7 @@ const CLAUDE_CONFIG = () =>
 // Last-known-usage cache + rate limiting
 // -----------------------------------------------------------------------------
 // api.anthropic.com/api/oauth/usage rate-limits aggressively. A full scrape can
-// run far more often than that (the daemon every 60s, and each `llm-util
+// run far more often than that (the daemon every 60s, and each `llmquota
 // --refresh` spawns a one-shot scrape), so a transient 429 must not blank the
 // card. Keep the last good payload on disk and back off after a rate limit.
 const CACHE_PATH = path.resolve(

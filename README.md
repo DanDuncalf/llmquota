@@ -261,7 +261,7 @@ profile.json   { "email": …, "client": "antigravity" | "gemini" }
 ```
 
 Every profile is a valid `GEMINI_CLI_HOME`, so
-`GEMINI_CLI_HOME=~/.gemini-profiles/dan.duncalf gemini` uses the same login.
+`GEMINI_CLI_HOME=~/.gemini-profiles/<slug> gemini` uses the same login.
 The scraper refreshes expired access tokens in place (backup:
 `oauth_creds.json.bak-quota-dashboard`) and renders one card per account.
 
@@ -338,14 +338,152 @@ curl -s http://127.0.0.1:8787/ | tail -3                  # "what should I use n
 `Accept: text/plain` (without `application/json`) also returns the text report, so
 plain `curl` works with no query param. Browser `fetch` keeps getting JSON.
 
+## Ask it from an agent (CLI + MCP)
+
+The dashboard ships its own agent-facing query layer in `src/agent/` — the
+`llmquota` CLI and a stdio MCP server. Both read the live API first, fall back
+to `data/state.json`, and can run a one-shot scrape when the snapshot is stale.
+Nothing leaves this checkout; there is no second project to install.
+
+| Field in the JSON | Meaning |
+|---|---|
+| `dollars_left` | prepaid USD balance (DeepSeek; DeepInfra is postpaid so it reports `dollars_spent`) |
+| `five_hour` | 5-hour session window: `used_pct`, `remaining_pct`, `resets_at`, `reset_in` |
+| `weekly` | weekly window: same shape |
+| `windows` | metered / other windows (and unavailable-plan placeholders) |
+| `models` | per-model token usage over rolling 1 h / 5 h / 24 h |
+| `recommended_next` | the plan window whose capacity expires soonest |
+
+Queries work by **company** (`claude`, `openai`, `gemini`/`agy`, `kimi`,
+`deepseek`, …), by **model** (`gpt-6.1-sol`, `gemini-3.8-flash-high`,
+`kimi-for-coding`, …), or by **account** (`you@example.com`,
+`second@example.com`) for the multi-account Agy harness.
+
+```bash
+llmquota.cmd kimi                  # JSON (add E:\path\to\llmquota to PATH → llmquota)
+llmquota.cmd deepseek              # JSON with dollars_left
+llmquota.cmd gpt-6.1-sol           # JSON via model -> provider
+llmquota.cmd agy                   # both linked Gemini/Agy accounts
+llmquota.cmd you@example.com       # one Agy account by email/local-part
+llmquota.cmd --list --refresh      # every provider, fresh scrape
+llmquota.cmd openai --text         # human-readable
+```
+
+Text mode:
+
+```
+LLM utilization — snapshot 3s old
+query: openai (matched by provider)
+
+ChatGPT (OpenAI)  [available]
+  5h session   used     6%  left    94%  resets in 4h 44m
+  weekly       used    17%  left    83%  resets in 6d 9h
+  models (24h tokens):
+    gpt-6.1-sol                           107822891  311 reqs
+
+next: Kimi 5h session — 75.4% left, resets in 1h 54m
+```
+
+### MCP tools
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `get_quota` | `query` (company, model, or account), optional `refresh`, optional `include_models` | compact JSON payload |
+| `list_quota` | optional `refresh` | every provider, compact |
+
+Gemini via the **Agy harness** is reported once per linked Google account. Each
+entry has `provider: "gemini"`, `harness: "agy"`, and an `account` email; query
+`gemini` / `agy` / `antigravity` for both accounts, or `you@example.com` for one.
+
+`refresh`:
+* omitted → auto: scrape if the snapshot is older than `LLMQUOTA_MAX_AGE_SEC` (300 s)
+* `true` → always scrape (~2 s, hits provider APIs)
+* `false` → never scrape; serve the snapshot as-is
+
+### Register it
+
+**Codex** (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.llmquota]
+command = 'C:\Program Files\nodejs\node.exe'
+args = ['E:\path\to\llmquota\node_modules\tsx\dist\cli.mjs', 'E:\path\to\llmquota\src\agent\mcp-server.ts']
+```
+
+**Kimi CLI**
+
+```bash
+kimi mcp add llmquota -- node E:\path\to\llmquota\node_modules\tsx\dist\cli.mjs E:\path\to\llmquota\src\agent\mcp-server.ts
+kimi mcp list
+```
+
+**Claude Code**
+
+```bash
+claude mcp add llmquota -- node E:\path\to\llmquota\node_modules\tsx\dist\cli.mjs E:\path\to\llmquota\src\agent\mcp-server.ts
+```
+
+**Any JSON-config client** (`mcpServers` block):
+
+```json
+{
+  "mcpServers": {
+    "llmquota": {
+      "command": "node",
+      "args": [
+        "E:\\path\\to\\llmquota\\node_modules\\tsx\\dist\\cli.mjs",
+        "E:\\path\\to\\llmquota\\src\\agent\\mcp-server.ts"
+      ]
+    }
+  }
+}
+```
+
+MCP servers log to **stderr** only; stdout is the protocol channel.
+
+### Data freshness and failure behavior
+
+Resolution order on every call:
+
+1. `GET http://127.0.0.1:8787/api/quota-state` (dashboard running)
+2. `data/state.json` (dashboard stopped — still works, but ages)
+3. one-shot `tsx src/scraper/index.ts --once` when stale and refresh is allowed
+
+If a scrape fails, the tool still returns the last snapshot and appends a
+`refresh failed: …` warning. A missing/unreadable state file returns `ok: false`
+with a hint.
+
+### Environment
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LLMQUOTA_STATE` | `<repo>/data/state.json` | explicit snapshot path |
+| `LLMQUOTA_API` | `http://127.0.0.1:8787` | dashboard API base |
+| `LLMQUOTA_AUTO_REFRESH` | `1` | `0` disables implicit scrapes |
+| `LLMQUOTA_MAX_AGE_SEC` | `300` | staleness threshold for auto-refresh |
+| `LLMQUOTA_REFRESH_TIMEOUT_MS` | `90000` | scrape timeout |
+
+`npm run test:agent` spawns the real MCP server over stdio, lists tools, and
+queries a company (`kimi`), a model (`gpt-6.1-sol`), a prepaid balance
+(`deepseek`), both Agy accounts, plus an unknown query.
+
 ## Project layout
 
 ```
 quota-dashboard/
 ├── data/state.json             ← written by scraper, read by API
+├── llmquota.cmd                ← PATH wrapper for the agent CLI
+├── test/agent-smoke.mjs        ← MCP handshake + query smoke test
 └── src/
     ├── env.ts                  ← tiny dependency-free .env loader
     ├── types/quota.ts          ← buckets, provider_models, TokenTally, modelKey()
+    ├── agent/
+    │   ├── cli.ts              ← `llmquota` CLI (JSON or --text)
+    │   ├── mcp-server.ts       ← MCP stdio server (get_quota / list_quota)
+    │   ├── normalize.ts        ← compact shape + query matching + recommendation
+    │   ├── providers.ts        ← provider ids, companies, aliases
+    │   ├── source.ts           ← API → state.json → one-shot scrape
+    │   └── config.ts           ← paths, API base, refresh policy
     ├── scraper/
     │   ├── index.ts            ← orchestrator (real default, --mock for fake)
     │   ├── calculator.ts       ← waste risk + routing priority
@@ -443,6 +581,9 @@ npm run ui                    # Vite dev server on :5173
 npm run dev                   # all three, REAL data
 npm run dev:mock              # all three, mock data
 npm run reset-state           # wipe state.json, regenerate mock snapshot
+npm run query -- kimi         # agent CLI (same as llmquota.cmd kimi)
+npm run mcp                   # MCP server on stdio (for an agent client)
+npm run test:agent            # MCP + CLI smoke test
 npm run typecheck             # tsc --noEmit
 npm run ui:build              # production build of UI → dist-ui/
 ```

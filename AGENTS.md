@@ -28,7 +28,14 @@ Data flow:
 
 ```
 scraper daemon (60s) ──► data/state.json ──► Express API :8787 ──► React UI :5173
+                                              │
+                                              └──► src/agent (llmquota CLI + MCP server)
 ```
+
+The **agent query layer** lives in `src/agent/` and is part of this package: the
+`llmquota` CLI (`llmquota.cmd` → `src/agent/cli.ts`) and the stdio MCP server
+(`src/agent/mcp-server.ts`, tools `get_quota` / `list_quota`). It reads the live
+API first, falls back to `data/state.json`, and can spawn a one-shot scrape.
 
 ## Commands
 
@@ -43,11 +50,16 @@ npm run typecheck    # tsc --noEmit
 npm run ui:build     # production UI build → dist-ui/
 npm run reset-state  # wipe state.json and regenerate a mock snapshot
 npm run gemini-login -- EMAIL   # link a Google account for Antigravity quota
+npm run query -- kimi           # agent CLI (JSON; add --text for humans)
+npm run mcp                     # MCP server on stdio
+npm run test:agent              # MCP handshake + query smoke test
 ```
 
 Verification for any non-trivial change: `npm run typecheck` must pass. For UI
 changes also run `npm run ui:build`. For scraper changes, `npm run scrape:mock`
-plus `curl -s http://127.0.0.1:8787/` is the quick smoke test.
+plus `curl -s http://127.0.0.1:8787/` is the quick smoke test. For changes to
+`src/agent/`, run `npm run test:agent` (needs the dashboard or a fresh
+`data/state.json`).
 
 ## Layout
 
@@ -79,6 +91,19 @@ src/
 - **Provider scrapers are pure data producers**: return `RawBucket[]` and let
   `enrichBucket()` in `calculator.ts` fill `waste_risk`, `routing_priority`, and
   `waste_score`. Risk thresholds live only in `calculator.ts`.
+- **`src/agent/` never re-derives quota numbers.** It only reshapes
+  `data/state.json` (or the API copy of it) for agents. Anything computed there
+  must already exist in the state file.
+- **Keep the agent layer's JSON shape stable.** `get_quota` / `list_quota` and
+  the CLI are consumed by orchestration scripts (e.g. mogcrew's
+  `core-dispatch.py`) and by agent prompts; rename fields only with a repo-wide
+  reference sweep. The MCP entry is registered in `~/.codex/config.toml` as
+  `[mcp_servers.llmquota]` and launches `node_modules/tsx/dist/cli.mjs
+  src/agent/mcp-server.ts` — keep that command working.
+- **Tests for the agent layer are live-data smoke tests**
+  (`test/agent-smoke.mjs`). They assert specific providers/accounts exist on
+  this machine; treat a failure as "check the dashboard state" before assuming
+  a code regression.
 - **Label quota windows by duration, not position.** ChatGPT plans differ:
   `primary_window` may be the 7-day window. Derive labels from
   `limit_window_seconds`.
@@ -94,8 +119,8 @@ src/
 - **Adding a provider** touches: a scraper in `src/scraper/providers/`, the
   registration in `src/scraper/index.ts`, `Provider` + `PROVIDER_ORDER` +
   `PROVIDER_LABEL` in `src/types/quota.ts`, the Zod enum in
-  `src/server/index.ts`, `PROVIDER_META` in `src/ui/lib/meta.ts`, and the docs
-  in `README.md`.
+  `src/server/index.ts`, `PROVIDERS` in `src/agent/providers.ts`, `PROVIDER_META`
+  in `src/ui/lib/meta.ts`, and the docs in `README.md`.
 - **DeepSeek token usage is day-granular.** It comes from
   `platform.deepseek.com/api/v0/usage/amount`, authenticated with the browser
   session token `DEEPSEEK_PLATFORM_TOKEN` (not the `sk-` API key). Only the

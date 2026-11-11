@@ -16,9 +16,13 @@
     "dev:mock": "concurrently -k -n SCRAPER,SERVER,UI -c yellow,cyan,magenta \"npm run scrape:mock\" \"npm run server\" \"npm run ui\"",
     "reset-state": "tsx src/scripts/reset-state.ts",
     "gemini-login": "tsx src/scripts/gemini-login.ts",
+    "query": "tsx src/agent/cli.ts",
+    "mcp": "tsx src/agent/mcp-server.ts",
+    "test:agent": "node test/agent-smoke.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "react": "^18.3.1",
