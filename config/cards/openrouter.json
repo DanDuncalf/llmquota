@@ -1,0 +1,16 @@
+{
+  "id": "openrouter",
+  "label": "OpenRouter",
+  "company": "OpenRouter",
+  "url": "https://openrouter.ai/credits",
+  "palette": "amber",
+  "order": 220,
+  "aliases": [
+    "openrouter",
+    "open router"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Credit balance across many upstream models."
+}

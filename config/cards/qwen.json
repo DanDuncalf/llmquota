@@ -1,0 +1,23 @@
+{
+  "id": "qwen",
+  "label": "Qwen",
+  "company": "Alibaba Cloud",
+  "url": "https://modelstudio.console.alibabacloud.com/",
+  "palette": "violet",
+  "order": 80,
+  "aliases": [
+    "qwen",
+    "alibaba",
+    "alibaba cloud",
+    "modelstudio",
+    "tongyi",
+    "qwen code"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {
+    "catalog": "local:qwen",
+    "logs": "qwen"
+  },
+  "notes": "No public quota endpoint for the ModelStudio Token Plan — only local token usage is known."
+}

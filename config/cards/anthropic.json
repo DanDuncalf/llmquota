@@ -1,0 +1,28 @@
+{
+  "id": "anthropic",
+  "label": "Claude",
+  "company": "Anthropic",
+  "url": "https://claude.ai/settings/usage",
+  "palette": "orange",
+  "order": 10,
+  "aliases": ["anthropic", "claude", "claude code", "claudeai", "sonnet", "opus", "haiku"],
+  "windows": [
+    {
+      "id": "claude-5h",
+      "label": "5h session",
+      "kind": "five_hour",
+      "tier": "rolling_window",
+      "hours": 5,
+      "display": "percent"
+    },
+    {
+      "id": "claude-weekly",
+      "label": "Weekly",
+      "kind": "weekly",
+      "tier": "periodic_fixed",
+      "hours": 168,
+      "display": "percent"
+    }
+  ],
+  "usage": { "catalog": "observed", "logs": "claude" }
+}

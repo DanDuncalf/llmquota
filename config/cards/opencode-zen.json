@@ -1,0 +1,17 @@
+{
+  "id": "opencode-zen",
+  "label": "OpenCode Zen",
+  "company": "OpenCode",
+  "url": "https://opencode.ai/",
+  "palette": "orange",
+  "order": 410,
+  "aliases": [
+    "opencode",
+    "opencode zen",
+    "zen"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Curated model gateway for the OpenCode CLI."
+}

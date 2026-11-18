@@ -1,0 +1,17 @@
+{
+  "id": "huggingface",
+  "label": "Hugging Face",
+  "company": "Hugging Face",
+  "url": "https://huggingface.co/settings/billing",
+  "palette": "emerald",
+  "order": 370,
+  "aliases": [
+    "huggingface",
+    "hf",
+    "hugging face inference"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Inference credits / PRO plan."
+}

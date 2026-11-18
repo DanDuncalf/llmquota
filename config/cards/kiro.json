@@ -1,0 +1,16 @@
+{
+  "id": "kiro",
+  "label": "Kiro",
+  "company": "AWS",
+  "url": "https://kiro.dev/",
+  "palette": "indigo",
+  "order": 170,
+  "aliases": [
+    "kiro",
+    "aws kiro"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Spec-driven agent IDE on AWS; quota shown in the app only."
+}

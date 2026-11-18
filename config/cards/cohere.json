@@ -1,0 +1,17 @@
+{
+  "id": "cohere",
+  "label": "Cohere",
+  "company": "Cohere",
+  "url": "https://dashboard.cohere.com/",
+  "palette": "teal",
+  "order": 360,
+  "aliases": [
+    "cohere",
+    "command r",
+    "command"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Trial/production keys have monthly token quotas."
+}

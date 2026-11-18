@@ -1,0 +1,16 @@
+{
+  "id": "groq",
+  "label": "Groq",
+  "company": "Groq",
+  "url": "https://console.groq.com/",
+  "palette": "zinc",
+  "order": 200,
+  "aliases": [
+    "groq",
+    "groqcloud"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Free tier is rate-limited; paid usage is metered spend."
+}

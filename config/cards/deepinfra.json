@@ -1,0 +1,26 @@
+{
+  "id": "deepinfra",
+  "label": "DeepInfra",
+  "company": "DeepInfra",
+  "url": "https://deepinfra.com/dash/usage",
+  "palette": "teal",
+  "order": 60,
+  "aliases": [
+    "deepinfra",
+    "deep infra"
+  ],
+  "windows": [
+    {
+      "id": "deepinfra-spend",
+      "label": "balance & spend",
+      "kind": "metered",
+      "tier": "metered",
+      "display": "currency"
+    }
+  ],
+  "usage": {
+    "catalog": "api:deepinfra",
+    "monthly": true
+  },
+  "notes": "Metered spend comes from the DeepInfra billing API; token usage is monthly, not rolling."
+}

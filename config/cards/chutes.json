@@ -1,0 +1,16 @@
+{
+  "id": "chutes",
+  "label": "Chutes",
+  "company": "Chutes",
+  "url": "https://chutes.ai/app",
+  "palette": "blue",
+  "order": 400,
+  "aliases": [
+    "chutes",
+    "chutes ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Prepaid credits."
+}

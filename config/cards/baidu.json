@@ -1,0 +1,18 @@
+{
+  "id": "baidu",
+  "label": "ERNIE",
+  "company": "Baidu",
+  "url": "https://console.bce.baidu.com/qianfan",
+  "palette": "violet",
+  "order": 350,
+  "aliases": [
+    "baidu",
+    "ernie",
+    "qianfan",
+    "wenxin"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Qianfan / ERNIE balance."
+}

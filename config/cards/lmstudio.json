@@ -1,0 +1,17 @@
+{
+  "id": "lmstudio",
+  "label": "LM Studio",
+  "company": "Local",
+  "url": "https://lmstudio.ai/",
+  "palette": "sky",
+  "order": 450,
+  "aliases": [
+    "lmstudio",
+    "lm studio",
+    "local server"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Local runtime — no quota."
+}

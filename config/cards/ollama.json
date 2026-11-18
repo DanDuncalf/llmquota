@@ -1,0 +1,16 @@
+{
+  "id": "ollama",
+  "label": "Ollama",
+  "company": "Local",
+  "url": "http://127.0.0.1:11434/",
+  "palette": "amber",
+  "order": 440,
+  "aliases": [
+    "ollama",
+    "local models"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Local runtime — free and unlimited; track it only for token usage."
+}

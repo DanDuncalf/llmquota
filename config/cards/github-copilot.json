@@ -1,0 +1,17 @@
+{
+  "id": "github-copilot",
+  "label": "GitHub Copilot",
+  "company": "GitHub",
+  "url": "https://github.com/settings/copilot",
+  "palette": "teal",
+  "order": 140,
+  "aliases": [
+    "copilot",
+    "github copilot",
+    "gh copilot"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Monthly premium-request allowance."
+}

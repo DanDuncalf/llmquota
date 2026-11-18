@@ -1,0 +1,16 @@
+{
+  "id": "replicate",
+  "label": "Replicate",
+  "company": "Replicate",
+  "url": "https://replicate.com/account/billing",
+  "palette": "fuchsia",
+  "order": 380,
+  "aliases": [
+    "replicate",
+    "replicate ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Metered per-second billing."
+}

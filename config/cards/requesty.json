@@ -1,0 +1,16 @@
+{
+  "id": "requesty",
+  "label": "Requesty",
+  "company": "Requesty",
+  "url": "https://app.requesty.ai/",
+  "palette": "zinc",
+  "order": 420,
+  "aliases": [
+    "requesty",
+    "requesty router"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "LLM router; spend per key."
+}

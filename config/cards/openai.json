@@ -1,0 +1,28 @@
+{
+  "id": "openai",
+  "label": "ChatGPT",
+  "company": "OpenAI",
+  "url": "https://chatgpt.com/",
+  "palette": "emerald",
+  "order": 20,
+  "aliases": ["openai", "open ai", "chatgpt", "chat gpt", "codex", "gpt", "o1", "o3", "o4", "o5"],
+  "windows": [
+    {
+      "id": "chatgpt-5h",
+      "label": "5h session",
+      "kind": "five_hour",
+      "tier": "rolling_window",
+      "hours": 5,
+      "display": "percent"
+    },
+    {
+      "id": "chatgpt-weekly",
+      "label": "Weekly",
+      "kind": "weekly",
+      "tier": "periodic_fixed",
+      "hours": 168,
+      "display": "percent"
+    }
+  ],
+  "usage": { "catalog": "local:codex", "logs": "codex" }
+}

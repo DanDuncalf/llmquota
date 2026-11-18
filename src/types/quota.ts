@@ -12,15 +12,15 @@
 //                and, where available, provider usage APIs).
 // =============================================================================
 
-export type Provider =
-  | 'anthropic'   // Claude Pro / Max (claude.ai plan windows)
-  | 'openai'      // ChatGPT Plus / Pro (Codex rate-limit windows)
-  | 'gemini'      // Google Gemini CLI / Code Assist (one card per account)
-  | 'moonshot'    // Kimi Code Plan (5h + weekly windows)
-  | 'minimax'     // MiniMax coding/token plan
-  | 'deepseek'    // DeepSeek metered (pay-as-you-go balance)
-  | 'deepinfra'   // DeepInfra metered (pay-as-you-go spend)
-  | 'qwen';       // Qwen (Qwen Code CLI)
+/**
+ * Provider id — the join key between a card spec and its buckets.
+ *
+ * Deliberately `string`, not a closed union: cards are loaded from JSON at
+ * runtime (src/cards/), so the set of providers is data, not a compile-time
+ * fact. The registry validates ids when cards are loaded, and the API rejects
+ * buckets whose provider has no card (they still render generically).
+ */
+export type Provider = string;
 
 export type TierType =
   | 'rolling_window'   // 3h / 5h / etc — refills on a rolling basis
@@ -251,50 +251,6 @@ export function modelKey(model: string): string {
   return lower.split('/').pop() ?? lower;
 }
 
-/** Display order + names for provider cards. Shared by UI and text renderer. */
-export const PROVIDER_ORDER: Provider[] = [
-  'anthropic',
-  'openai',
-  'gemini',
-  'moonshot',
-  'minimax',
-  'deepinfra',
-  'deepseek',
-  'qwen',
-];
-
-export const PROVIDER_LABEL: Record<Provider, string> = {
-  anthropic: 'Claude',
-  openai: 'ChatGPT',
-  gemini: 'Antigravity',
-  moonshot: 'Moonshot',
-  minimax: 'MiniMax',
-  deepseek: 'DeepSeek',
-  deepinfra: 'DeepInfra',
-  qwen: 'Qwen',
-};
-
-/**
- * Where to send someone who clicks a provider — its own console / usage page.
- * Change a value here to point a card somewhere else (used by both the web UI
- * and the text renderer).
- */
-export const PROVIDER_URL: Record<Provider, string> = {
-  anthropic: 'https://claude.ai/settings/usage',
-  openai: 'https://chatgpt.com/',
-  gemini: 'https://antigravity.google/',
-  moonshot: 'https://www.kimi.ai/settings/subscription?tab=quota',
-  minimax: 'https://platform.minimax.io/',
-  deepinfra: 'https://deepinfra.com/dash/usage',
-  deepseek: 'https://platform.deepseek.com/usage',
-  qwen: 'https://modelstudio.console.alibabacloud.com/',
-};
-
-/** Short host label for a provider URL, e.g. "deepinfra.com". */
-export function providerHost(provider: Provider): string {
-  try {
-    return new URL(PROVIDER_URL[provider]).host.replace(/^www\./, '');
-  } catch {
-    return PROVIDER_URL[provider];
-  }
-}
+// Provider labels, console URLs and display order live in the card JSON files
+// under config/cards/ — see src/cards/spec.ts. This module stays free of
+// runtime imports so every layer can consume it.

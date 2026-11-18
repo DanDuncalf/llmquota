@@ -1,0 +1,17 @@
+{
+  "id": "xai",
+  "label": "Grok",
+  "company": "xAI",
+  "url": "https://grok.com/",
+  "palette": "rose",
+  "order": 100,
+  "aliases": [
+    "xai",
+    "x.ai",
+    "grok",
+    "grok-code"
+  ],
+  "shown": false,
+  "windows": [],
+  "notes": "Quota depends on the X Premium+ / SuperGrok tier; no public quota API."
+}

@@ -138,6 +138,10 @@ Environment variables already present in your OS/user environment always win, so
 
 **A. Claude Code OAuth (preferred):** run `claude` once and log in; the token
 lands in `~/.claude/.credentials.json`.
+The dashboard refreshes this token itself (using the refresh token in that file)
+and writes the rotated pair back, so the `claude` CLI stays logged in. You only
+need to log in again if the refresh token is revoked; the card then says
+"Claude login expired".
 
 **B. claude.ai web session:** DevTools → **Application** → **Cookies** →
 `https://claude.ai` → copy `sessionKey` → put it in `.env`:
@@ -443,6 +447,14 @@ MCP servers log to **stderr** only; stdout is the protocol channel.
 
 ### Data freshness and failure behavior
 
+`data/state.json` belongs to the scraper daemon. When the agent CLI/MCP needs
+fresher data it runs a one-shot scrape that writes **`data/agent-state.json`**
+(`SCRAPE_OUT`) and reads that file back — so an agent running without provider
+credentials can never overwrite the dashboard's snapshot. Any other out-of-band
+caller can do the same with `npm run scrape -- --once --out=PATH`.
+
+
+
 Resolution order on every call:
 
 1. `GET http://127.0.0.1:8787/api/quota-state` (dashboard running)
@@ -467,25 +479,151 @@ with a hint.
 queries a company (`kimi`), a model (`gpt-6.1-sol`), a prepaid balance
 (`deepseek`), both Agy accounts, plus an unknown query.
 
+## Cards are data
+
+Every card on the dashboard is a JSON specification — not a component. One file
+per card, loaded at runtime:
+
+```
+config/cards/*.json   ← shipped with the repo (git)
+data/cards/*.json     ← yours (gitignored); same id overrides the shipped card
+```
+
+```json
+{
+  "id": "deepseek",
+  "label": "DeepSeek",
+  "company": "DeepSeek",
+  "url": "https://platform.deepseek.com/usage",
+  "palette": "blue",
+  "order": 70,
+  "aliases": ["deepseek", "deep seek"],
+  "windows": [
+    { "id": "deepseek-balance", "label": "metered balance",
+      "kind": "metered", "tier": "metered", "display": "currency" }
+  ],
+  "usage": { "catalog": "api:deepseek", "platform": "deepseek" }
+}
+```
+
+| field | meaning |
+|---|---|
+| `id` | join key with `state.json` `provider` and the JSON filename; also the UI's drag-order key |
+| `windows[]` | the rows the card should have. `id` must match the scraper's `model_id`. Empty array = render whatever arrives (per-account cards like Gemini) |
+| `windows[].kind` | `five_hour` \| `weekly` \| `daily` \| `metered` \| `other` — used for headline windows and the "weekly capacity" sort |
+| `windows[].display` | `percent` \| `currency` \| `note` — picks the row body; no provider branching in the UI |
+| `palette` | one of `orange emerald indigo sky fuchsia blue teal violet rose amber zinc` |
+| `shown` | `false` = hidden template: listed in the Cards view, never counted as available capacity and never shown on the dashboard |
+| `usage` | `catalog` (`api:*` / `local:*` / `observed`), `logs` (CLI log family), `monthly`, `platform` |
+| `order` | ascending sort rank (lower = further left); ties fall back to label |
+| `agent` | optional: `harness` + `serves` model list for query matching |
+
+**Dynamic behavior.** The registry re-scans both directories on every request
+and every scrape tick (cached on file mtimes). Add, edit or delete a card and it
+appears/disappears on the next dashboard poll (≤15 s) and scrape tick (≤60 s) —
+no restart, no UI rebuild.
+
+**A JSON-only card works immediately.** With no scraper registered, the card
+renders as UNAVAILABLE with the reason — one row per declared window — plus
+local token usage if any log source matches. Write a scraper only when you want
+real numbers.
+
+**A declared window is never silently dropped.** If the scraper reports only
+one of two declared windows, the missing one shows as UNAVAILABLE
+("not reported by provider"). If the scraper already returns its own
+`unavailable` bucket, nothing is synthesized on top of it.
+
+### Starter library
+
+A fresh checkout ships **44 cards**: the 8 live ones (Claude, ChatGPT,
+Antigravity, Kimi, MiniMax, DeepInfra, DeepSeek, Qwen) plus **36 hidden
+templates** that you can show as your fleet grows:
+
+| group | cards |
+|---|---|
+| coding plans / agent IDEs | Grok (`xai`), Gemini (`google`), Mistral, Z.ai (GLM), GitHub Copilot, Cursor, Windsurf, Kiro, Perplexity, Trae |
+| inference APIs / gateways | Groq, Together AI, OpenRouter, Cerebras, Fireworks, Novita, SiliconFlow, Hyperbolic, Nebius, Lambda |
+| cloud platforms | Azure OpenAI, Vertex AI, AWS Bedrock, Doubao (Volcengine), Hunyuan, ERNIE |
+| other hosted APIs | Cohere, Hugging Face, Replicate, SambaNova, Chutes, OpenCode Zen, Requesty, Vercel AI Gateway |
+| local runtimes | Ollama, LM Studio |
+
+Templates carry identity, palette, console link, sort order and agent aliases,
+and declare no windows (`"windows": []`), so a scraper you add later can
+report whatever rows the provider actually has.
+
+`shown: false` means **not available**: templates are excluded from the
+dashboard grid, the "Available" panel, `summary.providers`,
+`summary.total_providers`, the text renderer and the agent's provider list.
+Show one in the Cards view (or `PUT /api/cards/<id>` with `"shown": true`)
+and it appears on the next scrape tick — as UNAVAILABLE until a scraper reports
+measurements for it.
+
+Gemini is represented twice on purpose: `gemini` (label *Antigravity*) tracks
+Google Code Assist OAuth accounts, while `google` is the AI Studio / Gemini API
+card. Show whichever you actually use.
+
+### Managing cards in the UI
+
+The header's **Cards (N)** button opens the card registry:
+
+- list of every loaded card with source (`shipped` / `user`), window count and
+  whether it has data
+- **Show / Hide** — flip a card between the dashboard and hidden-template state
+- **New card** / **Edit** — form for all spec fields, including windows, with
+  server-side validation errors shown inline
+- **Delete** — removes that card's JSON file
+- load errors (unparseable files, filename/id mismatch) and orphan providers
+  (buckets with no card) are listed so nothing is invisible
+
+Each dashboard card also has a **☰ menu** (top right) with **Refresh**
+(re-scrape that card immediately), **Hide**, **Edit** (opens the Cards view
+with the editor) and **Delete**.
+
+### Card API
+
+```
+GET    /api/cards        → { cards, errors, dirs, writable_dir }
+PUT    /api/cards/:id    → create/update (id in the path wins; zod-validated)
+DELETE /api/cards/:id    → remove that card's JSON file
+POST   /api/cards/:id/refresh → re-scrape one card, merge into state.json
+GET    /api/quota-state  → { state, summary, cards, card_errors }
+```
+
+Updates are written back to the file the card was loaded from; new cards go to
+`data/cards/`. Writes are atomic (`tmp` + `rename`).
+
+### Validate before committing
+
+```bash
+npm run cards:check     # zod + duplicate window ids + state.json cross-check
+```
+
 ## Project layout
 
 ```
 quota-dashboard/
 ├── data/state.json             ← written by scraper, read by API
+├── config/cards/*.json         ← card specifications (shipped)
+├── data/cards/*.json           ← card specifications (yours, gitignored)
 ├── llmquota.cmd                ← PATH wrapper for the agent CLI
 ├── test/agent-smoke.mjs        ← MCP handshake + query smoke test
 └── src/
     ├── env.ts                  ← tiny dependency-free .env loader
     ├── types/quota.ts          ← buckets, provider_models, TokenTally, modelKey()
+    ├── cards/
+    │   ├── vocab.ts            ← palette names, window kinds/tiers/displays
+    │   ├── spec.ts             ← zod schema + types (one card = one spec)
+    │   └── registry.ts         ← dynamic loader, mtime cache, atomic CRUD
     ├── agent/
     │   ├── cli.ts              ← `llmquota` CLI (JSON or --text)
     │   ├── mcp-server.ts       ← MCP stdio server (get_quota / list_quota)
     │   ├── normalize.ts        ← compact shape + query matching + recommendation
-    │   ├── providers.ts        ← provider ids, companies, aliases
+    │   ├── providers.ts        ← provider metadata derived from the cards
     │   ├── source.ts           ← API → state.json → one-shot scrape
     │   └── config.ts           ← paths, API base, refresh policy
     ├── scraper/
     │   ├── index.ts            ← orchestrator (real default, --mock for fake)
+    │   ├── cards.ts            ← declared windows ↔ measured buckets
     │   ├── calculator.ts       ← waste risk + routing priority
     │   ├── mock-generator.ts   ← drifting mock state, same shape as real
     │   ├── providers/          ← claude, chatgpt, gemini, kimi, minimax,
@@ -496,15 +634,18 @@ quota-dashboard/
     │       └── build.ts        ← merges catalogs + rollups per provider
     ├── scripts/
     │   ├── gemini-login.ts    ← link a Google account (Antigravity OAuth)
+    │   ├── cards-check.ts     ← validate cards + cross-check state.json
     │   ├── reset-state.ts
     │   └── calc-check.ts
     ├── server/
-    │   ├── index.ts            ← Express + Zod validation
+    │   ├── index.ts            ← Express + Zod validation + card CRUD
     │   └── text-render.ts      ← grouped report for curl / text clients
     └── ui/
-        ├── components/ProviderCard.tsx  ← windows + usage table + catalog toggle
-        ├── components/Dashboard.tsx     ← status panels naming providers
-        └── lib/{api,meta,cardOrder}.ts
+        ├── components/ProviderCard.tsx  ← spec-driven windows + usage table
+        ├── components/CardList.tsx      ← card registry (add/edit/delete)
+        ├── components/CardEditor.tsx    ← card spec form
+        ├── components/Dashboard.tsx     ← status panels + view switch
+        └── lib/{api,meta,specs,cardOrder}.ts
 ```
 
 ## Waste Risk formula
@@ -590,16 +731,22 @@ npm run ui:build              # production build of UI → dist-ui/
 
 ## Extending
 
-- **Add a provider** — add a scraper in `src/scraper/providers/` returning
-  `RawBucket[]`, register it in `src/scraper/index.ts`, then add the id to
-  `Provider` + `PROVIDER_ORDER` + `PROVIDER_LABEL` in `src/types/quota.ts`, the
-  Zod enum in `src/server/index.ts`, and `PROVIDER_META` in `src/ui/lib/meta.ts`.
-  Emit `unavailableBucket({...})` on failure instead of fabricating numbers.
+- **Add a card (no code)** — drop `config/cards/<id>.json` (or use the Cards
+  view / `PUT /api/cards/<id>`). Pick a palette, declare the windows, done. The
+  card renders as UNAVAILABLE until a scraper reports it.
+- **Give a card real numbers** — add a scraper in `src/scraper/providers/`
+  returning `RawBucket[]`, then register it under the card id in `SCRAPERS` in
+  `src/scraper/index.ts`. Emit `unavailableBucket({...})` on failure instead of
+  fabricating numbers. Card identity, palette, labels and order stay in JSON.
 - **Add a log source for token usage** — add an entry to `SOURCES` in
-  `src/scraper/usage/local-usage.ts` (a `matchName` filter + a `parse` function).
-- **Add a window** — push another `RawBucket` with the same `provider`; it renders
-  as an extra row in that provider's card.
+  `src/scraper/usage/local-usage.ts` (a `matchName` filter + a `parse`
+  function), then set `usage.logs` on the card to that source name.
+- **Add a window to an existing card** — add it to `windows[]` with a `display`
+  primitive; the scraper must emit that `model_id` or the row shows as
+  UNAVAILABLE.
 - **Tune thresholds** — `classifyRisk()` in `src/scraper/calculator.ts`.
+
+Validation for card changes: `npm run typecheck && npm run cards:check && npm run ui:build`.
 
 ## License
 

@@ -1,78 +1,95 @@
 // =============================================================================
-// Provider / status metadata — color & icon helpers
+// Palettes / status metadata — color helpers
 // =============================================================================
-// Centralized so colors stay consistent across cards, header chips, and the
-// "next recommendation" highlight.
+// Cards declare a palette NAME in JSON (`"palette": "orange"`). The Tailwind
+// class strings must stay here as literals: Tailwind's content scanner only
+// reads .ts/.tsx sources, so class names loaded from JSON would never be
+// emitted into the CSS bundle.
 // =============================================================================
 
-import type { Provider, WasteRiskLevel } from '../../types/quota.js';
+import type { PaletteName } from '../../cards/vocab.js';
+import type { WasteRiskLevel } from '../../types/quota.js';
 
-export interface ProviderMeta {
-  label: string;
-  color: string;       // tailwind text-* class
-  bg: string;          // tailwind bg-* class
-  border: string;      // tailwind border-* class
-  badge: string;       // full chip classes
+export interface Palette {
+  color: string; // tailwind text-* class
+  bg: string; // tailwind bg-* class
+  border: string; // tailwind border-* class
+  badge: string; // full chip classes
 }
 
-export const PROVIDER_META: Record<Provider, ProviderMeta> = {
-  anthropic: {
-    label: 'Anthropic',
+export const PALETTES: Record<PaletteName, Palette> = {
+  orange: {
     color: 'text-orange-300',
     bg: 'bg-orange-500/15',
     border: 'border-orange-500/40',
     badge: 'bg-orange-500/15 text-orange-300 border border-orange-500/40',
   },
-  openai: {
-    label: 'OpenAI',
+  emerald: {
     color: 'text-emerald-300',
     bg: 'bg-emerald-500/15',
     border: 'border-emerald-500/40',
     badge: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40',
   },
-  gemini: {
-    label: 'Antigravity',
+  indigo: {
     color: 'text-indigo-300',
     bg: 'bg-indigo-500/15',
     border: 'border-indigo-500/40',
     badge: 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/40',
   },
-  moonshot: {
-    label: 'Moonshot',
+  sky: {
     color: 'text-sky-300',
     bg: 'bg-sky-500/15',
     border: 'border-sky-500/40',
     badge: 'bg-sky-500/15 text-sky-300 border border-sky-500/40',
   },
-  minimax: {
-    label: 'MiniMax',
+  fuchsia: {
     color: 'text-fuchsia-300',
     bg: 'bg-fuchsia-500/15',
     border: 'border-fuchsia-500/40',
     badge: 'bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/40',
   },
-  deepseek: {
-    label: 'DeepSeek',
+  blue: {
     color: 'text-blue-300',
     bg: 'bg-blue-500/15',
     border: 'border-blue-500/40',
     badge: 'bg-blue-500/15 text-blue-300 border border-blue-500/40',
   },
-  deepinfra: {
-    label: 'DeepInfra',
+  teal: {
     color: 'text-teal-300',
     bg: 'bg-teal-500/15',
     border: 'border-teal-500/40',
     badge: 'bg-teal-500/15 text-teal-300 border border-teal-500/40',
   },
-  qwen: {
-    label: 'Qwen',
+  violet: {
     color: 'text-violet-300',
     bg: 'bg-violet-500/15',
     border: 'border-violet-500/40',
     badge: 'bg-violet-500/15 text-violet-300 border border-violet-500/40',
   },
+  rose: {
+    color: 'text-rose-300',
+    bg: 'bg-rose-500/15',
+    border: 'border-rose-500/40',
+    badge: 'bg-rose-500/15 text-rose-300 border border-rose-500/40',
+  },
+  amber: {
+    color: 'text-amber-300',
+    bg: 'bg-amber-500/15',
+    border: 'border-amber-500/40',
+    badge: 'bg-amber-500/15 text-amber-300 border border-amber-500/40',
+  },
+  zinc: {
+    color: 'text-zinc-300',
+    bg: 'bg-zinc-500/15',
+    border: 'border-zinc-500/40',
+    badge: 'bg-zinc-500/15 text-zinc-300 border border-zinc-500/40',
+  },
 };
+
+/** Palette for a card; unknown names fall back to neutral. */
+export function paletteOf(name: string | undefined): Palette {
+  return PALETTES[name as PaletteName] ?? PALETTES.zinc;
+}
 
 /** Compact token counts: 1234 → 1.2k, 1_234_567 → 1.23M. */
 export function fmtTokens(n: number | undefined): string {

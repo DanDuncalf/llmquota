@@ -1,0 +1,16 @@
+{
+  "id": "sambanova",
+  "label": "SambaNova",
+  "company": "SambaNova",
+  "url": "https://cloud.sambanova.ai/",
+  "palette": "indigo",
+  "order": 390,
+  "aliases": [
+    "sambanova",
+    "samba nova"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Cloud credits."
+}

@@ -1,0 +1,19 @@
+{
+  "id": "mistral",
+  "label": "Mistral",
+  "company": "Mistral AI",
+  "url": "https://console.mistral.ai/",
+  "palette": "sky",
+  "order": 120,
+  "aliases": [
+    "mistral",
+    "codestral",
+    "mixtral",
+    "magistral",
+    "le chat"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Le Chat / Codestral plans; usage reporting is per-key spend."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "volcengine",
+  "label": "Doubao",
+  "company": "ByteDance",
+  "url": "https://console.volcengine.com/ark",
+  "palette": "amber",
+  "order": 330,
+  "aliases": [
+    "volcengine",
+    "ark",
+    "doubao",
+    "volcano engine"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Volcengine Ark; quota in the console."
+}

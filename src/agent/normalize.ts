@@ -15,7 +15,8 @@
 // =============================================================================
 
 import type { TierType, WasteRiskLevel } from '../types/quota.js';
-import { PROVIDERS, providerMeta, aliasMatches } from './providers.js';
+import { findCard } from '../cards/registry.js';
+import { providers as providerList, providerMeta, aliasMatches } from './providers.js';
 import type { ProviderMeta } from './providers.js';
 import { stateAgeSeconds } from './source.js';
 
@@ -208,8 +209,22 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${s}s`;
 }
 
-/** Which of the two headline windows is this bucket? */
+/** Which of the two headline windows is this bucket?
+ *
+ * The card spec is authoritative: a declared window's `kind` wins, so no card
+ * depends on its label text. The heuristics remain only for buckets whose
+ * provider has no card (orphans) or windows that are not declared (dynamic
+ * cards such as Gemini's one-row-per-account list). */
 function windowKind(bucket: AgentBucket): WindowKind {
+  const declared = findCard(bucket.provider ?? '')?.windows.find(
+    (w) => w.id === bucket.model_id,
+  );
+  if (declared) {
+    if (declared.kind === 'five_hour') return 'five_hour';
+    if (declared.kind === 'weekly') return 'weekly';
+    if (declared.kind === 'metered') return 'metered';
+  }
+
   const label = `${bucket.window_label ?? ''} ${bucket.display_name ?? ''}`.toLowerCase();
   const hours = bucket.capacity?.limit_window_hours;
   if (
@@ -337,7 +352,7 @@ export function normalizeProviders(state: AgentState): NormalizedProvider[] {
   const providerModels = Array.isArray(state?.provider_models) ? state.provider_models : [];
   const out: NormalizedProvider[] = [];
 
-  for (const meta of PROVIDERS) {
+  for (const meta of providerList()) {
     const ownAll = buckets.filter((b) => b.provider === meta.id);
     const models = providerModels.find((p) => p.provider === meta.id);
     const accounts = [...new Set(ownAll.map((b) => b.account ?? null))];
@@ -376,7 +391,9 @@ function accountMatchesQuery(account: string | undefined, q: string): boolean {
 /** Match a provider by any of its aliases. */
 export function matchByProvider(query: string): string[] {
   const q = query.toLowerCase().trim();
-  return PROVIDERS.filter((p) => p.aliases.some((a) => aliasMatches(q, a))).map((p) => p.id);
+  return providerList()
+    .filter((p) => p.aliases.some((a) => aliasMatches(q, a)))
+    .map((p) => p.id);
 }
 
 function matchingModelNames(
@@ -388,7 +405,7 @@ function matchingModelNames(
   const names = new Set(modelStrings(provider).filter((m) => m.toLowerCase().includes(q)));
 
   // Static catalog for harnesses that do not write provider_models (Agy).
-  const meta = PROVIDERS.find((p) => p.id === provider.provider);
+  const meta = providerList().find((p) => p.id === provider.provider);
   for (const cat of meta?.catalog ?? []) {
     if (cat.toLowerCase().includes(q)) names.add(cat);
   }
@@ -410,7 +427,7 @@ function exactModelMatches(
   const out = new Map<string, string[]>();
 
   for (const p of providers) {
-    const meta = PROVIDERS.find((m) => m.id === p.provider);
+    const meta = providerList().find((m) => m.id === p.provider);
     const names = new Set<string>();
     for (const m of meta?.catalog ?? []) names.add(m);
 

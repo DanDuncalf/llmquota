@@ -49,12 +49,12 @@ function isStateFile(value: unknown): value is AgentState {
   );
 }
 
-/** Parse state.json, retrying briefly in case the scraper is mid-write. */
-function readStateFile(): AgentState {
+/** Parse a snapshot file, retrying briefly in case a writer is mid-rename. */
+function readStateFile(at: string = CONFIG.statePath): AgentState {
   let lastErr: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const raw = fs.readFileSync(CONFIG.statePath, 'utf8');
+      const raw = fs.readFileSync(at, 'utf8');
       const state: unknown = JSON.parse(raw);
       if (!isStateFile(state)) throw new Error('state.json has no buckets');
       return state;
@@ -67,7 +67,7 @@ function readStateFile(): AgentState {
     }
   }
   const message = lastErr instanceof Error ? lastErr.message : 'unknown error';
-  throw new Error(`cannot read quota state at ${CONFIG.statePath}: ${message}`);
+  throw new Error(`cannot read quota state at ${at}: ${message}`);
 }
 
 /** Read the newest snapshot available. */
@@ -112,11 +112,20 @@ async function doRefresh(): Promise<ReadStateResult> {
     throw new Error(`cannot refresh: ${tsxCli} not found (run npm install in ${CONFIG.dashboardDir})`);
   }
 
+  // Write to an agent-owned file: data/state.json belongs to the daemon.
+  const outPath = CONFIG.agentStatePath;
+  try {
+    fs.unlinkSync(outPath); // never read a snapshot from a previous run
+  } catch {
+    /* not there yet */
+  }
+
   await new Promise<void>((resolve, reject) => {
     const child = spawn(process.execPath, [tsxCli, 'src/scraper/index.ts', '--once'], {
       cwd: CONFIG.dashboardDir,
       windowsHide: true,
       stdio: ['ignore', 'ignore', 'pipe'],
+      env: { ...process.env, SCRAPE_OUT: outPath },
     });
 
     let stderr = '';
@@ -144,10 +153,10 @@ async function doRefresh(): Promise<ReadStateResult> {
     });
   });
 
-  // Let the file settle, then read it (deliberately skip the API so we observe
-  // the snapshot we just produced).
+  // Let the file settle, then read the snapshot we just produced (deliberately
+  // skip the API so we observe our own result).
   await sleep(100);
-  return { state: readStateFile(), source: 'file', api_up: false };
+  return { state: readStateFile(outPath), source: 'file', api_up: false };
 }
 
 export interface LoadOptions {

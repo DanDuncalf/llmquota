@@ -5,9 +5,10 @@
 // the default; pass --mock (or set USE_REAL_SCRAPERS=0) to use the local mock
 // generator instead.
 //
-// Providers: Claude, ChatGPT (Codex), Kimi, MiniMax, DeepInfra, DeepSeek.
-// Any provider that errors or lacks credentials emits an `unavailable` bucket
-// so its card still renders with an explanation.
+// The list of cards is DATA: it comes from the card registry (config/cards/ +
+// data/cards/), re-read on every tick. A card with no registered scraper still
+// renders — as UNAVAILABLE, with a reason — so adding a card is a JSON-only
+// operation until you want real numbers for it.
 //
 // Usage:
 //   npm run scrape          # real data (default)
@@ -24,14 +25,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { enrichBucket, sortByRoutingPriority } from './calculator.js';
 import { generateMockState } from './mock-generator.js';
-import { scrapeClaude } from './providers/claude.js';
-import { scrapeChatGPT } from './providers/chatgpt.js';
-import { scrapeGemini } from './providers/gemini.js';
-import { scrapeKimi } from './providers/kimi.js';
-import { scrapeMiniMax } from './providers/minimax.js';
-import { scrapeDeepSeek } from './providers/deepseek.js';
-import { scrapeDeepInfra } from './providers/deepinfra.js';
-import { scrapeQwen } from './providers/qwen.js';
+import { collectCardBuckets } from './collect.js';
+import { loadRegistry } from '../cards/registry.js';
 import { collectLocalUsage, rollup } from './usage/local-usage.js';
 import { fetchCatalogs, fetchDeepInfraMonthly } from './usage/catalogs.js';
 import { fetchDeepSeekPlatformUsage } from './usage/deepseek-platform.js';
@@ -41,6 +36,20 @@ import type { QuotaStateFile } from '../types/quota.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STATE_PATH = path.resolve(__dirname, '../../data/state.json');
+
+/**
+ * Where this tick writes. The daemon owns data/state.json; out-of-band callers
+ * (the agent's one-shot refresh, scripts) pass --out=PATH or SCRAPE_OUT so they
+ * can never clobber a fresher daemon snapshot — or worse, overwrite it with a
+ * degraded one when their process happens to lack provider credentials.
+ */
+function resolveOutputPath(argv: string[]): string {
+  const inline = argv.find((a) => a.startsWith('--out='));
+  const fromArg = inline ? inline.slice('--out='.length) : undefined;
+  const chosen = fromArg ?? process.env.SCRAPE_OUT;
+  return chosen ? path.resolve(chosen) : STATE_PATH;
+}
+const OUTPUT_PATH = resolveOutputPath(process.argv.slice(2));
 
 // -----------------------------------------------------------------------------
 // CLI flags
@@ -61,19 +70,17 @@ const intervalSec = Math.max(10, Number(process.env.SCRAPE_INTERVAL ?? 60));
 async function collectReal(): Promise<QuotaStateFile> {
   const nowIso = new Date().toISOString();
 
-  // Provider quota windows, provider model catalogs, and local token usage are
-  // all independent — run them together.
+  // Reload cards every tick so a card added/edited on disk shows up within one
+  // interval, with no daemon restart.
+  const registry = loadRegistry();
+  for (const e of registry.errors) {
+    console.error(`[scraper] card error in ${e.file}: ${e.message}`);
+  }
+
+  // Card quotas, provider model catalogs, and local token usage are all
+  // independent — run them together.
   const [quotaResults, localUsage, catalogs, diMonthly, deepseekPlatform] = await Promise.all([
-    Promise.all([
-      safeCall('claude', scrapeClaude, []),
-      safeCall('chatgpt', scrapeChatGPT, []),
-      safeCall('gemini', scrapeGemini, []),
-      safeCall('kimi', scrapeKimi, []),
-      safeCall('minimax', scrapeMiniMax, []),
-      safeCall('deepinfra', scrapeDeepInfra, []),
-      safeCall('deepseek', scrapeDeepSeek, []),
-      safeCall('qwen', scrapeQwen, []),
-    ]),
+    collectCardBuckets(registry.cards),
     safeCall('local-usage', collectLocalUsage, {
       events: [],
       sourcesScanned: [],
@@ -86,7 +93,7 @@ async function collectReal(): Promise<QuotaStateFile> {
     safeCall('deepseek-platform', fetchDeepSeekPlatformUsage, null),
   ]);
 
-  const raw = quotaResults.flat();
+  const raw = quotaResults;
   const buckets = sortByRoutingPriority(raw.map(enrichBucket));
 
   const provider_models = catalogs
@@ -118,10 +125,10 @@ async function safeCall<T>(name: string, fn: () => Promise<T>, fallback: T): Pro
 }
 
 function writeState(state: QuotaStateFile): void {
-  fs.mkdirSync(path.dirname(STATE_PATH), { recursive: true });
-  const tmp = STATE_PATH + '.tmp';
+  fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true });
+  const tmp = OUTPUT_PATH + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf8');
-  fs.renameSync(tmp, STATE_PATH);
+  fs.renameSync(tmp, OUTPUT_PATH);
 }
 
 // -----------------------------------------------------------------------------
@@ -136,7 +143,7 @@ async function tick(): Promise<void> {
     .map((b) => `${b.model_id}:${b.waste_risk}/${b.capacity.used_pct.toFixed(1)}%`)
     .join('  ');
   console.log(
-    `[scraper:${state.source}] wrote ${state.buckets.length} buckets in ${dt}ms — ${summary}`,
+    `[scraper:${state.source}] wrote ${state.buckets.length} buckets to ${OUTPUT_PATH} in ${dt}ms — ${summary}`,
   );
 }
 

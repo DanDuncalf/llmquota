@@ -1,0 +1,26 @@
+{
+  "id": "deepseek",
+  "label": "DeepSeek",
+  "company": "DeepSeek",
+  "url": "https://platform.deepseek.com/usage",
+  "palette": "blue",
+  "order": 70,
+  "aliases": [
+    "deepseek",
+    "deep seek"
+  ],
+  "windows": [
+    {
+      "id": "deepseek-balance",
+      "label": "metered balance",
+      "kind": "metered",
+      "tier": "metered",
+      "display": "currency"
+    }
+  ],
+  "usage": {
+    "catalog": "api:deepseek",
+    "platform": "deepseek"
+  },
+  "notes": "Prepaid balance; token usage is day-granular from the platform API."
+}

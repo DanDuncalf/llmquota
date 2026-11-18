@@ -1,0 +1,17 @@
+{
+  "id": "perplexity",
+  "label": "Perplexity",
+  "company": "Perplexity AI",
+  "url": "https://www.perplexity.ai/settings/account",
+  "palette": "blue",
+  "order": 180,
+  "aliases": [
+    "perplexity",
+    "pplx",
+    "sonar"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Pro plan search quotas; no usage API."
+}

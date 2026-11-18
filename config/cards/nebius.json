@@ -1,0 +1,16 @@
+{
+  "id": "nebius",
+  "label": "Nebius AI Studio",
+  "company": "Nebius",
+  "url": "https://studio.nebius.ai/",
+  "palette": "indigo",
+  "order": 280,
+  "aliases": [
+    "nebius",
+    "nebius ai studio"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Prepaid balance."
+}

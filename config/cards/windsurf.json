@@ -1,0 +1,17 @@
+{
+  "id": "windsurf",
+  "label": "Windsurf",
+  "company": "Codeium",
+  "url": "https://windsurf.com/",
+  "palette": "fuchsia",
+  "order": 160,
+  "aliases": [
+    "windsurf",
+    "codeium",
+    "cascade"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Credit-based plans; no public usage API."
+}

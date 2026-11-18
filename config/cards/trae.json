@@ -1,0 +1,16 @@
+{
+  "id": "trae",
+  "label": "Trae",
+  "company": "ByteDance",
+  "url": "https://www.trae.ai/",
+  "palette": "orange",
+  "order": 190,
+  "aliases": [
+    "trae",
+    "trae ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Agent IDE; plan limits are console-only."
+}

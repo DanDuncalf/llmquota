@@ -1,0 +1,16 @@
+{
+  "id": "fireworks",
+  "label": "Fireworks AI",
+  "company": "Fireworks",
+  "url": "https://fireworks.ai/account/billing",
+  "palette": "violet",
+  "order": 240,
+  "aliases": [
+    "fireworks",
+    "fireworks ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Prepaid credits / monthly spend."
+}

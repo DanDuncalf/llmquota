@@ -25,7 +25,8 @@ import type {
   TierType,
   TokenTally,
 } from '../types/quota.js';
-import { PROVIDER_ORDER } from '../types/quota.js';
+import { loadRegistry } from '../cards/registry.js';
+import { synthesizeUnavailable } from './cards.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -225,6 +226,16 @@ export function generateMockState(): QuotaStateFile {
     });
   });
 
+  // Cards with no mock template still render: emit an UNAVAILABLE row per
+  // declared window so adding a card works in --mock mode too.
+  const templated = new Set(buckets.map((b) => b.provider));
+  for (const card of loadRegistry().cards) {
+    if (!card.shown || templated.has(card.id)) continue;
+    for (const raw of synthesizeUnavailable(card, 'mock mode - no mock template for this card')) {
+      buckets.push(enrichBucket(raw));
+    }
+  }
+
   const state: QuotaStateFile = {
     schema_version: 1,
     generated_at: nowIso,
@@ -347,22 +358,29 @@ const MOCK_MODELS: MockModelSpec[] = [
 
 export function generateMockProviderModels(): ProviderModels[] {
   const byProvider = new Map(MOCK_MODELS.map((m) => [m.provider, m]));
-  return PROVIDER_ORDER.map((provider) => {
-    const spec = byProvider.get(provider);
-    const catalog = spec?.catalog ?? [];
-    const usage = (spec?.usage ?? []).map(([model, scale]) =>
-      mockUsage(model, scale, catalog.includes(model)),
-    );
-    return {
-      provider,
-      catalog,
-      catalog_source: spec?.catalog_source ?? 'unavailable',
-      usage,
-      usage_source: spec?.usage_source ?? 'none',
-      monthly: spec?.monthly,
-      note: spec ? 'Mock generator' : 'no catalog and no local usage in the last 24h',
-    } satisfies ProviderModels;
-  });
+
+  // Iterate the cards, not a hardcoded list: a card added as JSON gets a mock
+  // usage table too (empty, but labelled) without touching this file. Hidden
+  // templates are skipped — they are not part of the mock fleet.
+  return loadRegistry()
+    .cards.filter((card) => card.shown)
+    .map((card) => {
+      const provider = card.id;
+      const spec = byProvider.get(provider);
+      const catalog = spec?.catalog ?? [];
+      const usage = (spec?.usage ?? []).map(([model, scale]) =>
+        mockUsage(model, scale, catalog.includes(model)),
+      );
+      return {
+        provider,
+        catalog,
+        catalog_source: spec?.catalog_source ?? 'unavailable',
+        usage,
+        usage_source: spec?.usage_source ?? 'none',
+        monthly: spec?.monthly,
+        note: spec ? 'Mock generator' : 'no catalog and no local usage in the last 24h',
+      } satisfies ProviderModels;
+    });
 }
 
 /** Convenience: write a fresh random state (no drift from previous). */

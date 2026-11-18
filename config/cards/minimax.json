@@ -1,0 +1,36 @@
+{
+  "id": "minimax",
+  "label": "MiniMax",
+  "company": "MiniMax",
+  "url": "https://platform.minimax.io/",
+  "palette": "fuchsia",
+  "order": 50,
+  "aliases": [
+    "minimax",
+    "mini max",
+    "m2",
+    "m2.7"
+  ],
+  "shown": false,
+  "windows": [
+    {
+      "id": "minimax-5h",
+      "label": "5h session",
+      "kind": "five_hour",
+      "tier": "rolling_window",
+      "hours": 5,
+      "display": "percent"
+    },
+    {
+      "id": "minimax-weekly",
+      "label": "Weekly",
+      "kind": "weekly",
+      "tier": "periodic_fixed",
+      "hours": 168,
+      "display": "percent"
+    }
+  ],
+  "usage": {
+    "catalog": "api:minimax"
+  }
+}

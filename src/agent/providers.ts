@@ -1,11 +1,14 @@
 // =============================================================================
-// Provider metadata + query aliases
+// Provider metadata + query aliases — derived from the card registry
 // =============================================================================
-// `id` matches the Provider ids emitted by the scraper into state.json.
-// Aliases are what an agent (or a human) might plausibly type.
+// Cards are data (config/cards/*.json), so the agent's notion of "what
+// providers exist" must come from the same place as the dashboard's. Each card
+// declares its own aliases (and, where relevant, the CLI harness it is reached
+// through). A card added at runtime is immediately queryable.
 // =============================================================================
 
 import type { Provider } from '../types/quota.js';
+import { loadRegistry } from '../cards/registry.js';
 
 export interface ProviderMeta {
   id: Provider;
@@ -20,84 +23,23 @@ export interface ProviderMeta {
   aliases: string[];
 }
 
-export const PROVIDERS: ProviderMeta[] = [
-  {
-    id: 'anthropic',
-    label: 'Claude',
-    company: 'Anthropic',
-    aliases: ['anthropic', 'claude', 'claude code', 'claudeai', 'sonnet', 'opus', 'haiku'],
-  },
-  {
-    id: 'openai',
-    label: 'ChatGPT',
-    company: 'OpenAI',
-    aliases: ['openai', 'open ai', 'chatgpt', 'chat gpt', 'codex', 'gpt', 'o1', 'o3', 'o4', 'o5'],
-  },
-  {
-    id: 'gemini',
-    label: 'Gemini (Agy)',
-    company: 'Google',
-    harness: 'agy',
-    // Models the Agy harness serves (agy models). Used only for query matching.
-    catalog: [
-      'gemini-3.8-flash-high',
-      'gemini-3.8-flash-medium',
-      'gemini-3.8-flash-low',
-      'claude-sonnet-4-6',
-      'claude-opus-4-6-thinking',
-      'gpt-oss-120b-medium',
-    ],
-    aliases: [
-      'gemini',
-      'gemini cli',
-      'gemini-cli',
-      'agy',
-      'antigravity',
-      'antigravity cli',
-      'agy harness',
-      'google',
-      'google ai',
-      'google gemini',
-    ],
-  },
-  {
-    id: 'moonshot',
-    label: 'Kimi',
-    company: 'Moonshot AI',
-    aliases: ['moonshot', 'kimi', 'kimi code', 'kimi-code', 'k2', 'k3', 'kimi-for-coding'],
-  },
-  {
-    id: 'minimax',
-    label: 'MiniMax',
-    company: 'MiniMax',
-    aliases: ['minimax', 'mini max', 'm2', 'm2.7'],
-  },
-  {
-    id: 'deepinfra',
-    label: 'DeepInfra',
-    company: 'DeepInfra',
-    aliases: ['deepinfra', 'deep infra'],
-  },
-  {
-    id: 'deepseek',
-    label: 'DeepSeek',
-    company: 'DeepSeek',
-    aliases: ['deepseek', 'deep seek'],
-  },
-  {
-    id: 'qwen',
-    label: 'Qwen',
-    company: 'Alibaba Cloud',
-    aliases: ['qwen', 'alibaba', 'alibaba cloud', 'modelstudio', 'tongyi', 'qwen code'],
-  },
-];
-
-const BY_ID = new Map<string, ProviderMeta>(PROVIDERS.map((p) => [p.id, p]));
+/** Every registered card, in display order. */
+export function providers(): ProviderMeta[] {
+  return loadRegistry().cards.map((card) => ({
+    id: card.id,
+    label: card.label,
+    company: card.company ?? card.label,
+    aliases: card.aliases.length > 0 ? card.aliases : [card.id, card.label.toLowerCase()],
+    ...(card.agent?.harness ? { harness: card.agent.harness } : {}),
+    ...(card.agent?.serves ? { catalog: card.agent.serves } : {}),
+  }));
+}
 
 export function providerMeta(id: string): ProviderMeta {
+  const found = providers().find((p) => p.id === id);
   return (
-    BY_ID.get(id) ?? {
-      id: id as Provider,
+    found ?? {
+      id,
       label: id,
       company: id,
       aliases: [id],

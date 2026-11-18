@@ -1,0 +1,16 @@
+{
+  "id": "cerebras",
+  "label": "Cerebras",
+  "company": "Cerebras",
+  "url": "https://cloud.cerebras.ai/",
+  "palette": "sky",
+  "order": 230,
+  "aliases": [
+    "cerebras",
+    "cerebras cloud"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Inference API; free tier plus paid credits."
+}

@@ -1,0 +1,17 @@
+{
+  "id": "hunyuan",
+  "label": "Hunyuan",
+  "company": "Tencent",
+  "url": "https://console.cloud.tencent.com/hunyuan",
+  "palette": "sky",
+  "order": 340,
+  "aliases": [
+    "hunyuan",
+    "tencent hunyuan",
+    "tencent"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Tencent Hunyuan; quota in the console."
+}

@@ -1,0 +1,34 @@
+{
+  "id": "gemini",
+  "label": "Antigravity",
+  "company": "Google",
+  "url": "https://antigravity.google/",
+  "palette": "indigo",
+  "order": 30,
+  "aliases": [
+    "gemini",
+    "gemini cli",
+    "gemini-cli",
+    "agy",
+    "antigravity",
+    "antigravity cli",
+    "agy harness",
+    "google",
+    "google ai",
+    "google gemini"
+  ],
+  "windows": [],
+  "usage": {},
+  "agent": {
+    "harness": "agy",
+    "serves": [
+      "gemini-3.8-flash-high",
+      "gemini-3.8-flash-medium",
+      "gemini-3.8-flash-low",
+      "claude-sonnet-4-6",
+      "claude-opus-4-6-thinking",
+      "gpt-oss-120b-medium"
+    ]
+  },
+  "notes": "One card per linked Google account; quota windows come from Google Code Assist."
+}

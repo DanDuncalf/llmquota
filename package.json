@@ -15,6 +15,7 @@
     "dev:real": "concurrently -k -n SCRAPER,SERVER,UI -c yellow,cyan,magenta \"npm run scrape\" \"npm run server\" \"npm run ui\"",
     "dev:mock": "concurrently -k -n SCRAPER,SERVER,UI -c yellow,cyan,magenta \"npm run scrape:mock\" \"npm run server\" \"npm run ui\"",
     "reset-state": "tsx src/scripts/reset-state.ts",
+    "cards:check": "tsx src/scripts/cards-check.ts",
     "gemini-login": "tsx src/scripts/gemini-login.ts",
     "query": "tsx src/agent/cli.ts",
     "mcp": "tsx src/agent/mcp-server.ts",

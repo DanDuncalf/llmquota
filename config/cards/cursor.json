@@ -1,0 +1,17 @@
+{
+  "id": "cursor",
+  "label": "Cursor",
+  "company": "Anysphere",
+  "url": "https://cursor.com/dashboard",
+  "palette": "emerald",
+  "order": 150,
+  "aliases": [
+    "cursor",
+    "cursor pro",
+    "anysphere"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Fast/premium request allowance resets monthly."
+}

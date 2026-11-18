@@ -1,0 +1,36 @@
+{
+  "id": "moonshot",
+  "label": "Kimi",
+  "company": "Moonshot AI",
+  "url": "https://www.kimi.ai/settings/subscription?tab=quota",
+  "palette": "sky",
+  "order": 40,
+  "aliases": ["moonshot", "kimi", "kimi code", "kimi-code", "k2", "k3", "kimi-for-coding"],
+  "windows": [
+    {
+      "id": "kimi-5h",
+      "label": "5h session",
+      "kind": "five_hour",
+      "tier": "rolling_window",
+      "hours": 5,
+      "display": "percent"
+    },
+    {
+      "id": "kimi-weekly",
+      "label": "Weekly",
+      "kind": "weekly",
+      "tier": "periodic_fixed",
+      "hours": 168,
+      "display": "percent"
+    },
+    {
+      "id": "kimi-backup",
+      "label": "backup balance",
+      "kind": "metered",
+      "tier": "metered",
+      "display": "currency"
+    }
+  ],
+  "usage": { "catalog": "api:kimi", "logs": "kimi" },
+  "notes": "Backup wallet is reported in micro-cents; shown as USD."
+}

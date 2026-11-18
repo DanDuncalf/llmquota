@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Provider } from '../../types/quota.js';
+import { loadRegistry } from '../../cards/registry.js';
 import { httpJson } from '../providers/base.js';
 
 export interface CatalogResult {
@@ -112,17 +113,29 @@ async function fetchCatalogsUncached(): Promise<Record<Provider, CatalogResult>>
     listModels('https://api.deepinfra.com/v1/openai/models', {}, byId),
   ]);
 
-  return {
-    moonshot: kimi,
-    deepseek,
-    minimax,
-    deepinfra,
-    // No public catalog without a key — filled from observed usage instead.
-    anthropic: { models: [], source: 'observed' },
-    openai: readCodexCatalog(),
-    gemini: { models: [], source: 'observed' },
-    qwen: readQwenPlanCatalog(),
+  // Every registered card gets an entry, so a card added as JSON shows up in
+  // the usage table without touching this file. Only the fetchers below are
+  // provider-specific (quota/model endpoints are undocumented per vendor).
+  const results: Record<Provider, CatalogResult> = {};
+  for (const card of loadRegistry().cards) {
+    if (!card.shown) continue;
+    results[card.id] = { models: [], source: card.usage.catalog ? 'unavailable' : 'observed' };
+  }
+  const put = (id: string, result: CatalogResult): void => {
+    results[id] = result;
   };
+
+  put('moonshot', kimi);
+  put('deepseek', deepseek);
+  put('minimax', minimax);
+  put('deepinfra', deepinfra);
+  // No public catalog without a key — filled from observed usage instead.
+  put('anthropic', { models: [], source: 'observed' });
+  put('openai', readCodexCatalog());
+  put('gemini', { models: [], source: 'observed' });
+  put('qwen', readQwenPlanCatalog());
+
+  return results;
 }
 
 /**

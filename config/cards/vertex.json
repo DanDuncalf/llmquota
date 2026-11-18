@@ -1,0 +1,17 @@
+{
+  "id": "vertex",
+  "label": "Vertex AI",
+  "company": "Google Cloud",
+  "url": "https://console.cloud.google.com/vertex-ai",
+  "palette": "zinc",
+  "order": 310,
+  "aliases": [
+    "vertex",
+    "vertex ai",
+    "gcp vertex"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Quotas are per-project and per-region."
+}

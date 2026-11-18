@@ -1,0 +1,16 @@
+{
+  "id": "hyperbolic",
+  "label": "Hyperbolic",
+  "company": "Hyperbolic",
+  "url": "https://app.hyperbolic.xyz/settings",
+  "palette": "fuchsia",
+  "order": 270,
+  "aliases": [
+    "hyperbolic",
+    "hyperbolic ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Credit balance."
+}

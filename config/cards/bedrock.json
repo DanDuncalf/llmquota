@@ -1,0 +1,16 @@
+{
+  "id": "bedrock",
+  "label": "AWS Bedrock",
+  "company": "AWS",
+  "url": "https://console.aws.amazon.com/bedrock",
+  "palette": "rose",
+  "order": 320,
+  "aliases": [
+    "bedrock",
+    "aws bedrock"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Model quotas are per-model and per-region."
+}

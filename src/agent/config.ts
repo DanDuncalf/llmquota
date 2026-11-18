@@ -26,8 +26,16 @@ export const CONFIG = {
   /** Where the scraper + package live (this checkout). */
   dashboardDir: REPO_ROOT,
 
-  /** Snapshot written by the scraper daemon. */
+  /** Snapshot written by the scraper daemon. Read-only for the agent. */
   statePath: process.env.LLMQUOTA_STATE ?? path.join(REPO_ROOT, 'data', 'state.json'),
+
+  /**
+   * Where an agent-triggered one-shot scrape writes. Deliberately NOT statePath:
+   * an agent process may run with a narrower environment (no provider keys) and
+   * must never overwrite the daemon's fresher snapshot.
+   */
+  agentStatePath:
+    process.env.LLMQUOTA_AGENT_STATE ?? path.join(REPO_ROOT, 'data', 'agent-state.json'),
 
   /** Live dashboard API. Used first; falls back to the state file. */
   apiBase: (process.env.LLMQUOTA_API ?? 'http://127.0.0.1:8787').replace(/\/+$/, ''),

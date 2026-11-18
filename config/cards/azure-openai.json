@@ -1,0 +1,17 @@
+{
+  "id": "azure-openai",
+  "label": "Azure OpenAI",
+  "company": "Microsoft",
+  "url": "https://portal.azure.com/",
+  "palette": "orange",
+  "order": 300,
+  "aliases": [
+    "azure",
+    "azure openai",
+    "aoai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Deployment quotas are per-region and shown in Azure."
+}

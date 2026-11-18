@@ -1,0 +1,17 @@
+{
+  "id": "vercel-ai",
+  "label": "Vercel AI Gateway",
+  "company": "Vercel",
+  "url": "https://vercel.com/dashboard/ai-gateway",
+  "palette": "rose",
+  "order": 430,
+  "aliases": [
+    "vercel",
+    "ai gateway",
+    "vercel ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Gateway credits in the Vercel dashboard."
+}

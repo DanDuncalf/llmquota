@@ -1,0 +1,16 @@
+{
+  "id": "novita",
+  "label": "Novita AI",
+  "company": "Novita",
+  "url": "https://novita.ai/billing",
+  "palette": "teal",
+  "order": 250,
+  "aliases": [
+    "novita",
+    "novita ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Credit balance."
+}

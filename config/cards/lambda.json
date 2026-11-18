@@ -1,0 +1,17 @@
+{
+  "id": "lambda",
+  "label": "Lambda",
+  "company": "Lambda Labs",
+  "url": "https://cloud.lambda.ai/",
+  "palette": "blue",
+  "order": 290,
+  "aliases": [
+    "lambda",
+    "lambda labs",
+    "lambda cloud"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Inference API credits."
+}

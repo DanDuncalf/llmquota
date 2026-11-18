@@ -4,11 +4,16 @@
 // Combines three inputs:
 //   * catalogs  — model lists from provider APIs (where available)
 //   * rollups   — per-model token usage from local CLI logs
-//   * monthly   — DeepInfra's month-granularity billing tokens
+//   * monthly   — billing-API tokens that are month-granularity (DeepInfra)
+//
+// Which log family / billing source feeds which card comes from the card
+// registry (`usage.logs`, `usage.monthly`, `usage.platform` in the JSON), so a
+// new card with local logs needs no edit in this file.
 // =============================================================================
 
-import { PROVIDER_ORDER, modelKey } from '../../types/quota.js';
+import { modelKey } from '../../types/quota.js';
 import type { Provider, ProviderModels } from '../../types/quota.js';
+import { loadRegistry } from '../../cards/registry.js';
 import type { ModelRollup, LocalUsageResult } from './local-usage.js';
 import { emptyTally } from './local-usage.js';
 import type { CatalogResult, MonthlyUsage } from './catalogs.js';
@@ -22,45 +27,57 @@ interface BuildInput {
   deepseekPlatform?: DeepSeekPlatformUsage | null;
 }
 
-function usageSourceFor(provider: Provider, hasLocal: boolean): string {
+const EMPTY_CATALOG: CatalogResult = { models: [], source: 'unavailable' };
+
+function usageSourceFor(provider: Provider, hasLocal: boolean, hasMonthly: boolean): string {
   const localLabel = 'local CLI logs (Claude Code, Codex, Kimi Code, Qwen)';
-  if (provider === 'deepinfra') return 'DeepInfra billing API (monthly)';
+  if (hasMonthly) return `${provider} billing API (monthly)`;
   if (hasLocal) return localLabel;
   return 'none';
 }
 
-/** Which local CLI log source feeds which provider. */
-const SOURCE_PROVIDER: Record<string, Provider> = {
-  claude: 'anthropic',
-  codex: 'openai',
-  kimi: 'moonshot',
-  qwen: 'qwen',
-};
-
-function lastActivityFor(provider: Provider, local: LocalUsageResult): string | undefined {
-  let best = 0;
-  for (const [source, p] of Object.entries(SOURCE_PROVIDER)) {
-    if (p !== provider) continue;
-    const t = local.sourceLatest[source];
-    if (t && t > best) best = t;
-  }
-  return best > 0 ? new Date(best).toISOString() : undefined;
-}
-
 export function buildProviderModels(input: BuildInput): ProviderModels[] {
   const { catalogs, rollups, monthly, local, deepseekPlatform } = input;
+  const cards = loadRegistry().cards;
 
-  // Gemini quota cards are account-scoped; their model list is already the
-  // quota row list, so a second per-provider usage table would be misleading.
-  const providers = PROVIDER_ORDER.filter((p) => p !== 'gemini');
+  /** log family → card id, from each card's `usage.logs`. */
+  const sourceMap: Record<string, Provider> = {};
+  for (const card of cards) {
+    if (typeof card.usage.logs === 'string' && card.usage.logs) {
+      sourceMap[card.usage.logs] = card.id;
+    }
+  }
+
+  const platformCard = cards.find((c) => c.usage.platform)?.id;
+  const monthlyCards = new Set(cards.filter((c) => c.usage.monthly).map((c) => c.id));
+
+  // Only cards that declare a usage source get a usage table. Account-scoped
+  // cards (Gemini) declare none, so their per-account quota rows are the whole
+  // story.
+  const providers = cards
+    .filter((c) => c.shown)
+    .filter((c) => c.usage.catalog || c.usage.logs || c.usage.monthly || c.usage.platform)
+    .map((c) => c.id);
+
+  const lastActivityFor = (provider: Provider): string | undefined => {
+    let best = 0;
+    for (const [source, p] of Object.entries(sourceMap)) {
+      if (p !== provider) continue;
+      const t = local.sourceLatest[source];
+      if (t && t > best) best = t;
+    }
+    return best > 0 ? new Date(best).toISOString() : undefined;
+  };
 
   return providers.map((provider) => {
-    const cat = catalogs[provider];
+    const cat = catalogs[provider] ?? EMPTY_CATALOG;
     const localRolls = rollups.filter((r) => r.provider === provider);
-    const platformDeepSeek =
-      provider === 'deepseek' ? deepseekPlatform?.rollups ?? [] : [];
-    const platformUsed = platformDeepSeek.length > 0;
-    const observedRolls = platformUsed ? platformDeepSeek : localRolls;
+    const hasMonthly = monthlyCards.has(provider);
+
+    const platformRolls =
+      platformCard === provider ? deepseekPlatform?.rollups ?? [] : [];
+    const platformUsed = platformRolls.length > 0;
+    const observedRolls = platformUsed ? platformRolls : localRolls;
 
     // Union the advertised catalog with anything we've actually observed, so a
     // model you use but that isn't in the catalog still shows up. Compare on
@@ -91,13 +108,13 @@ export function buildProviderModels(input: BuildInput): ProviderModels[] {
     if (cat.source === 'observed') {
       notes.push('catalog inferred from local usage (no public model list for this provider)');
     }
-    if (provider === 'deepinfra' && !monthly) {
+    if (hasMonthly && !monthly) {
       notes.push('no token data returned by billing API');
     }
     if (platformUsed) {
       notes.push('platform usage is a calendar-day bucket (today), not a rolling 24h; 1h/5h unavailable');
     }
-    if (provider === 'deepseek' && deepseekPlatform?.error) {
+    if (platformCard === provider && deepseekPlatform?.error) {
       notes.push(deepseekPlatform.error);
     }
 
@@ -108,12 +125,10 @@ export function buildProviderModels(input: BuildInput): ProviderModels[] {
       catalog_source,
       usage,
       usage_source: platformUsed
-        ? 'DeepSeek platform API (today)'
-        : usageSourceFor(provider, localRolls.length > 0),
-      last_activity: platformUsed
-        ? new Date().toISOString()
-        : lastActivityFor(provider, local),
-      monthly: provider === 'deepinfra' && monthly ? monthly : undefined,
+        ? 'platform usage API (today)'
+        : usageSourceFor(provider, localRolls.length > 0, hasMonthly),
+      last_activity: platformUsed ? new Date().toISOString() : lastActivityFor(provider),
+      monthly: hasMonthly && monthly ? monthly : undefined,
       note: notes.length > 0 ? notes.join(' · ') : undefined,
     } satisfies ProviderModels;
   }).map((pm) => {

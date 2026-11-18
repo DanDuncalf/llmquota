@@ -1,24 +1,36 @@
 // =============================================================================
-// ProviderCard — one card per AI subscription
+// ProviderCard — one card per subscription, rendered from a card spec
 // =============================================================================
+// Everything provider-specific arrives in `spec` (id, label, url, palette,
+// windows[]). This component never branches on a provider id: row bodies are
+// chosen by the window's declared `display` primitive.
+//
 // Contains:
-//   * a row per quota window (5h session / Weekly / metered balance)
-//   * a token-usage table: models × (1h / 5h / 24h)
-//   * the provider's full model catalog behind a toggle
+//   * one row per quota window, in the order the card declares them
+//   * a token-usage table: models × (1h / 5h / 24h), when the card has one
+//   * banked usage-limit resets (ChatGPT)
 // =============================================================================
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   NormalizedQuotaBucket,
-  Provider as ProviderId,
   ProviderModels,
   TokenTally,
   UsageResetCredit,
 } from '../../types/quota.js';
 import { CapacityBar } from './CapacityBar.js';
 import { CountdownTimer } from './CountdownTimer.js';
-import { PROVIDER_META, fmtTokens, statusMeta } from '../lib/meta.js';
-import { PROVIDER_URL, modelKey, providerHost } from '../../types/quota.js';
+import { fmtTokens, paletteOf, statusMeta } from '../lib/meta.js';
+import { modelKey } from '../../types/quota.js';
+import {
+  displayOf,
+  hostOf,
+  labelOf,
+  leadBucket,
+  orderBuckets,
+  windowFor,
+} from '../lib/specs.js';
+import type { CardLike } from '../lib/specs.js';
 
 /** Expanded catalogs taller than this get their own scrollbox. */
 const CATALOG_SCROLL_THRESHOLD = 9;
@@ -38,26 +50,6 @@ function tallyTitle(t: TokenTally): string {
     `total ${t.total.toLocaleString()}`,
     `${t.requests} records`,
   ].join('\n');
-}
-
-/** Shorter plan windows (5h) first, longer windows (weekly) second, metered fallbacks last. */
-function displayOrder(buckets: NormalizedQuotaBucket[]): NormalizedQuotaBucket[] {
-  return [...buckets].sort((a, b) => {
-    const am = a.tier_type === 'metered' ? 1 : 0;
-    const bm = b.tier_type === 'metered' ? 1 : 0;
-    if (am !== bm) return am - bm;
-    const ah = a.capacity.limit_window_hours ?? 999;
-    const bh = b.capacity.limit_window_hours ?? 999;
-    if (ah !== bh) return ah - bh;
-    return b.capacity.used_pct - a.capacity.used_pct;
-  });
-}
-
-/** The bucket that should headline this provider card. */
-function leadBucket(buckets: NormalizedQuotaBucket[]): NormalizedQuotaBucket | undefined {
-  const routable = buckets.filter((b) => !b.unavailable);
-  const pool = routable.length > 0 ? routable : buckets;
-  return [...pool].sort((a, b) => a.routing_priority - b.routing_priority)[0];
 }
 
 /** Merge banked reset credits across the card's buckets (dedupe by id), soonest first. */
@@ -123,14 +115,8 @@ function ResetCredits({ credits }: { credits: UsageResetCredit[] }) {
         {credits.map((c) => {
           const exp = creditExpiry(c.expires_at);
           return (
-            <li
-              key={c.id}
-              className="flex items-baseline justify-between gap-2 text-[11px]"
-            >
-              <span
-                className="min-w-0 truncate text-zinc-300"
-                title={c.description ?? c.title}
-              >
+            <li key={c.id} className="flex items-baseline justify-between gap-2 text-[11px]">
+              <span className="min-w-0 truncate text-zinc-300" title={c.description ?? c.title}>
                 {c.title ?? 'Rate-limit reset'}
               </span>
               <span className="shrink-0 whitespace-nowrap" title={exp.title}>
@@ -151,17 +137,102 @@ function ResetCredits({ credits }: { credits: UsageResetCredit[] }) {
   );
 }
 
-function WindowRow({ bucket, isNext }: { bucket: NormalizedQuotaBucket; isNext: boolean }) {
+// -----------------------------------------------------------------------------
+// Row bodies — the card's `display` field picks one of these primitives.
+// -----------------------------------------------------------------------------
+function CurrencyBody({
+  bucket,
+  caption,
+}: {
+  bucket: NormalizedQuotaBucket;
+  caption?: string;
+}) {
+  const { balance_usd: balance, spend_usd: spend, spend_period_label: period } = bucket.capacity;
+  return (
+    <>
+      {typeof balance === 'number' && typeof spend === 'number' ? (
+        <>
+          <div className="flex items-baseline justify-between">
+            <span className="stat-num text-blue-300 text-lg">{formatUsd(balance)}</span>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500">available</span>
+          </div>
+          <div className="mt-1 flex items-baseline justify-between text-[11px] text-zinc-400">
+            <span className="text-zinc-500">{period ? `spent (${period})` : 'spent'}</span>
+            <span className="font-mono text-zinc-300">{formatUsd(spend)}</span>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-baseline justify-between">
+          <span className="stat-num text-blue-300 text-lg">
+            {formatUsd(typeof balance === 'number' ? balance : spend)}
+          </span>
+          <span className="text-[10px] uppercase tracking-wider text-zinc-500">
+            {typeof balance === 'number' ? 'balance' : 'spent'}
+          </span>
+        </div>
+      )}
+      {caption && (
+        <div className="mt-0.5 text-[10px] text-zinc-500 truncate" title={caption}>
+          {caption}
+        </div>
+      )}
+    </>
+  );
+}
+
+function PercentBody({
+  bucket,
+  caption,
+}: {
+  bucket: NormalizedQuotaBucket;
+  caption?: string;
+}) {
+  return (
+    <>
+      <CapacityBar used_pct={bucket.capacity.used_pct} />
+      <div className="mt-1.5 flex items-baseline justify-between text-[11px]">
+        <span className="text-zinc-300">
+          <span className="stat-num text-zinc-100">{bucket.capacity.used_pct.toFixed(1)}</span>
+          <span className="text-zinc-500"> % used</span>
+        </span>
+        <span className="text-zinc-500">
+          resets{' '}
+          <CountdownTimer
+            reset_in_seconds={bucket.capacity.reset_in_seconds}
+            resets_at={bucket.capacity.resets_at}
+            className="text-zinc-300"
+          />
+        </span>
+      </div>
+      {caption && (
+        <div className="mt-0.5 text-[10px] text-zinc-500 truncate" title={caption}>
+          {caption}
+        </div>
+      )}
+    </>
+  );
+}
+
+function WindowRow({
+  spec,
+  bucket,
+  isNext,
+}: {
+  spec: CardLike;
+  bucket: NormalizedQuotaBucket;
+  isNext: boolean;
+}) {
   const isUnavailable = Boolean(bucket.unavailable);
-  const isMetered = bucket.tier_type === 'metered';
   const isExhausted = bucket.routing_priority === 999 && !isUnavailable;
   const status = statusMeta(bucket.waste_risk, bucket.tier_type, isExhausted, isUnavailable);
+  const display = displayOf(spec, bucket);
+  const caption = bucket.capacity.limit_label ?? windowFor(spec, bucket)?.limit_label;
 
   return (
     <div className="py-2.5 border-t border-surface-700/50 first:border-t-0 first:pt-0">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-zinc-200 truncate">
-          {bucket.window_label ?? bucket.display_name ?? bucket.model_id}
+          {labelOf(spec, bucket)}
         </span>
         <div className="flex items-center gap-1.5 shrink-0">
           {isNext && (
@@ -181,78 +252,12 @@ function WindowRow({ bucket, isNext }: { bucket: NormalizedQuotaBucket; isNext: 
           <p className="text-[11px] text-zinc-500 italic">
             {bucket.unavailable_reason ?? bucket.notes ?? 'unavailable'}
           </p>
-        ) : isMetered ? (
-          <>
-            {typeof bucket.capacity.balance_usd === 'number' && typeof bucket.capacity.spend_usd === 'number' ? (
-              <>
-                <div className="flex items-baseline justify-between">
-                  <span className="stat-num text-blue-300 text-lg">
-                    {formatUsd(bucket.capacity.balance_usd)}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-                    available
-                  </span>
-                </div>
-                <div className="mt-1 flex items-baseline justify-between text-[11px] text-zinc-400">
-                  <span className="text-zinc-500">
-                    {bucket.capacity.spend_period_label ? `spent (${bucket.capacity.spend_period_label})` : 'spent'}
-                  </span>
-                  <span className="font-mono text-zinc-300">
-                    {formatUsd(bucket.capacity.spend_usd)}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-baseline justify-between">
-                <span className="stat-num text-blue-300 text-lg">
-                  {typeof bucket.capacity.balance_usd === 'number'
-                    ? formatUsd(bucket.capacity.balance_usd)
-                    : formatUsd(bucket.capacity.spend_usd)}
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-                  {typeof bucket.capacity.balance_usd === 'number'
-                    ? bucket.window_label === 'backup balance'
-                      ? 'available'
-                      : 'balance'
-                    : 'spent'}
-                </span>
-              </div>
-            )}
-            {bucket.capacity.limit_label && (
-              <div
-                className="mt-0.5 text-[10px] text-zinc-500 truncate"
-                title={bucket.capacity.limit_label}
-              >
-                {bucket.capacity.limit_label}
-              </div>
-            )}
-          </>
+        ) : display === 'currency' ? (
+          <CurrencyBody bucket={bucket} caption={caption} />
+        ) : display === 'note' ? (
+          <p className="text-[11px] text-zinc-400">{bucket.notes ?? caption ?? '—'}</p>
         ) : (
-          <>
-            <CapacityBar used_pct={bucket.capacity.used_pct} />
-            <div className="mt-1.5 flex items-baseline justify-between text-[11px]">
-              <span className="text-zinc-300">
-                <span className="stat-num text-zinc-100">{bucket.capacity.used_pct.toFixed(1)}</span>
-                <span className="text-zinc-500"> % used</span>
-              </span>
-              <span className="text-zinc-500">
-                resets{' '}
-                <CountdownTimer
-                  reset_in_seconds={bucket.capacity.reset_in_seconds}
-                  resets_at={bucket.capacity.resets_at}
-                  className="text-zinc-300"
-                />
-              </span>
-            </div>
-            {bucket.capacity.limit_label && (
-              <div
-                className="mt-0.5 text-[10px] text-zinc-500 truncate"
-                title={bucket.capacity.limit_label}
-              >
-                {bucket.capacity.limit_label}
-              </div>
-            )}
-          </>
+          <PercentBody bucket={bucket} caption={caption} />
         )}
       </div>
     </div>
@@ -422,20 +427,106 @@ interface DragProps {
   onDragEnd: () => void;
 }
 
+/** Actions offered by the card's hamburger menu. All callbacks are fire-and-
+ *  forget: the parent owns the async work and reloads the dashboard. */
+export interface CardMenuProps {
+  busy: boolean;
+  onRefresh: () => void;
+  onHide: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+/** "☰" dropdown pinned to the card header. Closes on outside pointer-down. */
+function CardMenu({ busy, onRefresh, onHide, onEdit, onDelete }: CardMenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+
+  const itemCls =
+    'block w-full text-left px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-surface-700 hover:text-zinc-100 transition-colors disabled:opacity-40';
+  const run = (fn: () => void) => () => {
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div ref={ref} className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={busy}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Card actions"
+        title="Card actions"
+        className="px-1.5 py-0.5 text-sm leading-none rounded border border-surface-700 text-zinc-500 hover:text-zinc-200 hover:bg-surface-700 transition-colors disabled:opacity-40"
+      >
+        {busy ? '…' : '☰'}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1 z-30 min-w-[8.5rem] rounded-md border border-surface-600 bg-surface-800 shadow-lg shadow-black/40 py-1"
+        >
+          <button role="menuitem" className={itemCls} disabled={busy} onClick={run(onRefresh)}>
+            ↻ Refresh
+          </button>
+          <button role="menuitem" className={itemCls} disabled={busy} onClick={run(onHide)}>
+            Hide
+          </button>
+          <button role="menuitem" className={itemCls} disabled={busy} onClick={run(onEdit)}>
+            Edit
+          </button>
+          <button
+            role="menuitem"
+            className={`${itemCls} text-red-300 hover:text-red-200 hover:bg-red-500/10`}
+            disabled={busy}
+            onClick={run(onDelete)}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
-  provider: ProviderId;
+  spec: CardLike;
   account?: string;
   buckets: NormalizedQuotaBucket[];
   models?: ProviderModels;
   topRecommendationId: string | undefined;
+  /** "waiting for the scraper" hint when the card has no measurements yet. */
+  pending?: boolean;
   drag?: DragProps;
+  /** Hamburger actions (refresh / hide / edit / delete). */
+  menu?: CardMenuProps;
 }
 
-export function ProviderCard({ provider, account, buckets, models, topRecommendationId, drag }: Props) {
-  const meta = PROVIDER_META[provider];
-  const lead = leadBucket(buckets);
+export function ProviderCard({
+  spec,
+  account,
+  buckets,
+  models,
+  topRecommendationId,
+  pending,
+  drag,
+  menu,
+}: Props) {
+  const palette = paletteOf(spec.palette);
+  const lead = leadBucket(spec, buckets);
   const resetCredits = resetCreditsOf(buckets);
   const anyNext = buckets.some((b) => b.model_id === topRecommendationId);
+  const host = hostOf(spec.url);
 
   // The whole card is draggable, but a drag that starts on a link, button or
   // the inner scrollbox must keep its native behaviour (click / scroll).
@@ -489,7 +580,7 @@ export function ProviderCard({ provider, account, buckets, models, topRecommenda
               }
               e.dataTransfer.effectAllowed = 'move';
               // Some browsers refuse to start a drag without payload data.
-              e.dataTransfer.setData('text/plain', `${provider}:${account ?? ''}`);
+              e.dataTransfer.setData('text/plain', `${spec.id}:${account ?? ''}`);
               drag.onDragStart();
             }
           : undefined
@@ -534,19 +625,25 @@ export function ProviderCard({ provider, account, buckets, models, topRecommenda
               ⠿
             </span>
           )}
-          <a
-            href={PROVIDER_URL[provider]}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Open ${meta.label} — ${providerHost(provider)}`}
-            aria-label={`Open ${meta.label} console in a new tab (${providerHost(provider)})`}
-            className={`chip ${meta.badge} hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-white/30 transition`}
-          >
-            {meta.label}
-            <span aria-hidden className="ml-1 opacity-60">
-              ↗
+          {spec.url ? (
+            <a
+              href={spec.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Open ${spec.label} — ${host}`}
+              aria-label={`Open ${spec.label} console in a new tab (${host})`}
+              className={`chip ${palette.badge} hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-white/30 transition`}
+            >
+              {spec.label}
+              <span aria-hidden className="ml-1 opacity-60">
+                ↗
+              </span>
+            </a>
+          ) : (
+            <span className={`chip ${palette.badge}`} title={spec.notes}>
+              {spec.label}
             </span>
-          </a>
+          )}
           <span className="text-[10px] uppercase tracking-wider text-zinc-500">
             {buckets.length} window{buckets.length === 1 ? '' : 's'}
           </span>
@@ -557,6 +654,7 @@ export function ProviderCard({ provider, account, buckets, models, topRecommenda
             {leadStatus.label}
           </span>
         )}
+        {menu && <CardMenu {...menu} />}
       </header>
 
       {account && (
@@ -566,9 +664,22 @@ export function ProviderCard({ provider, account, buckets, models, topRecommenda
       )}
 
       <div className="mt-3 max-h-64 overflow-y-auto overscroll-contain pr-1" data-no-drag>
-        {displayOrder(buckets).map((b) => (
-          <WindowRow key={b.model_id} bucket={b} isNext={b.model_id === topRecommendationId} />
-        ))}
+        {buckets.length === 0 ? (
+          <p className="text-[11px] text-zinc-500 italic">
+            {pending
+              ? 'waiting for the scraper to report this card…'
+              : 'no windows reported'}
+          </p>
+        ) : (
+          orderBuckets(spec, buckets).map((b) => (
+            <WindowRow
+              key={b.model_id}
+              spec={spec}
+              bucket={b}
+              isNext={b.model_id === topRecommendationId}
+            />
+          ))
+        )}
       </div>
 
       {resetCredits.length > 0 && <ResetCredits credits={resetCredits} />}
@@ -576,15 +687,21 @@ export function ProviderCard({ provider, account, buckets, models, topRecommenda
       {models && <UsageTable models={models} />}
 
       <footer className="mt-3 pt-2 border-t border-surface-700/50 flex items-center justify-between text-[10px]">
-        <span className="text-zinc-600 truncate">{providerHost(provider)}</span>
-        <a
-          href={PROVIDER_URL[provider]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-zinc-400 hover:text-zinc-100 transition-colors shrink-0"
-        >
-          open console ↗
-        </a>
+        <span className="text-zinc-600 truncate" title={spec.notes}>
+          {host || spec.company || spec.id}
+        </span>
+        {spec.url ? (
+          <a
+            href={spec.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-400 hover:text-zinc-100 transition-colors shrink-0"
+          >
+            open console ↗
+          </a>
+        ) : (
+          <span className="text-zinc-700 shrink-0">no console url</span>
+        )}
       </footer>
     </article>
   );

@@ -1,0 +1,20 @@
+{
+  "id": "zai",
+  "label": "Z.ai",
+  "company": "Zhipu AI",
+  "url": "https://z.ai/",
+  "palette": "violet",
+  "order": 130,
+  "aliases": [
+    "zai",
+    "z.ai",
+    "glm",
+    "glm coding plan",
+    "zhipu",
+    "bigmodel"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "GLM Coding Plan; plan allowance is console-only."
+}

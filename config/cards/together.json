@@ -1,0 +1,17 @@
+{
+  "id": "together",
+  "label": "Together AI",
+  "company": "Together",
+  "url": "https://api.together.xyz/settings/billing",
+  "palette": "rose",
+  "order": 210,
+  "aliases": [
+    "together",
+    "togetherai",
+    "together ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "Prepaid credit balance."
+}

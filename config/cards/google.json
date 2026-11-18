@@ -1,0 +1,19 @@
+{
+  "id": "google",
+  "label": "Gemini",
+  "company": "Google",
+  "url": "https://aistudio.google.com/",
+  "palette": "amber",
+  "order": 110,
+  "aliases": [
+    "google ai studio",
+    "aistudio",
+    "gemini api",
+    "gemini app",
+    "google ai"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "AI Studio / Gemini API. Separate from the Antigravity card, which tracks Google Code Assist."
+}

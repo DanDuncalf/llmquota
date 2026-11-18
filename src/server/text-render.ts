@@ -14,7 +14,8 @@
 // =============================================================================
 
 import { pickTopRecommendation } from '../scraper/calculator.js';
-import { PROVIDER_LABEL, PROVIDER_ORDER, PROVIDER_URL, modelKey } from '../types/quota.js';
+import { cardLabel, cardRank, findCard, loadRegistry } from '../cards/registry.js';
+import { modelKey } from '../types/quota.js';
 import type {
   NormalizedQuotaBucket,
   Provider,
@@ -148,26 +149,25 @@ function rowFor(b: NormalizedQuotaBucket, isNext: boolean, color: boolean): stri
   return `  ${label}  ${painted}  ${used} ${bar} ${reset}  ${b.capacity.limit_label ?? ''}${nextTag}`;
 }
 
-/** "Kimi, ChatGPT" or "—". */
+/** "Kimi, ChatGPT" or "—". Labels come from the card registry. */
 function providerNames(sg: StatusGroup): string {
   if (sg.providers.length === 0) return '—';
-  return sg.providers.map((p) => PROVIDER_LABEL[p] ?? p).join(', ');
+  return sg.providers.map((p) => cardLabel(p)).join(', ');
 }
 
 function providerOrder(state: QuotaStateFile): Provider[] {
-  const present = new Set<Provider>([
-    ...state.buckets.map((b) => b.provider),
-    ...(state.provider_models ?? []).map((m) => m.provider),
-  ]);
-  return [
-    ...PROVIDER_ORDER.filter((p) => present.has(p)),
-    ...[...present].filter((p) => !PROVIDER_ORDER.includes(p)),
+  const present = [
+    ...new Set<Provider>([
+      ...state.buckets.map((b) => b.provider),
+      ...(state.provider_models ?? []).map((m) => m.provider),
+    ]),
   ];
+  return present.sort((a, b) => cardRank(a) - cardRank(b) || a.localeCompare(b));
 }
 
 function usageSection(pm: ProviderModels): string[] {
   const out: string[] = [];
-  const label = PROVIDER_LABEL[pm.provider] ?? pm.provider;
+  const label = cardLabel(pm.provider);
   const srcLabel =
     pm.catalog_source === 'provider_api'
       ? 'from provider API'
@@ -218,8 +218,14 @@ function usageSection(pm: ProviderModels): string[] {
 
 export function renderQuotaText(state: QuotaStateFile, opts: { color?: boolean } = {}): string {
   const color = opts.color ?? false;
-  const top = pickTopRecommendation(state.buckets);
-  const buckets = state.buckets;
+  // Hidden cards are templates: never list them as providers or capacity.
+  const hidden = new Set(
+    loadRegistry()
+      .cards.filter((c) => !c.shown)
+      .map((c) => c.id),
+  );
+  const buckets = state.buckets.filter((b) => !hidden.has(b.provider));
+  const top = pickTopRecommendation(buckets);
 
   const isCrit = (b: NormalizedQuotaBucket) => !b.unavailable && b.waste_risk === 'CRITICAL';
   const isHigh = (b: NormalizedQuotaBucket) => !b.unavailable && b.waste_risk === 'HIGH';
@@ -271,7 +277,8 @@ export function renderQuotaText(state: QuotaStateFile, opts: { color?: boolean }
       const accountTag = account ? ` · ${account}` : '';
       lines.push('');
       lines.push(`${names.toUpperCase()}${accountTag}  (${provider})${anyNext ? '   * has next pick' : ''}`);
-      lines.push(`  ${PROVIDER_URL[provider]}`);
+      const url = findCard(provider)?.url;
+      if (url) lines.push(`  ${url}`);
       for (const b of rows) lines.push(rowFor(b, b.model_id === top?.model_id, color));
 
       const credits = resetCreditsOf(rows);

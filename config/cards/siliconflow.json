@@ -1,0 +1,17 @@
+{
+  "id": "siliconflow",
+  "label": "SiliconFlow",
+  "company": "SiliconFlow",
+  "url": "https://cloud.siliconflow.cn/",
+  "palette": "emerald",
+  "order": 260,
+  "aliases": [
+    "siliconflow",
+    "silicon flow",
+    "silicon cloud"
+  ],
+  "shown": false,
+  "windows": [],
+  "usage": {},
+  "notes": "CN/international credit balance."
+}

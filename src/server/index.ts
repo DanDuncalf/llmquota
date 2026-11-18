@@ -7,6 +7,7 @@
 //   GET /                            → same text table
 //   GET /api/summary                  → alias for the text table
 //   GET /api/health                   → liveness + state freshness
+//   POST /api/cards/:id/refresh       → re-scrape one card into state.json
 //
 // Reads data/state.json fresh on every request (no caching) so the dashboard
 // always sees the latest snapshot written by the scraper daemon. CORS is open
@@ -24,7 +25,16 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { pickTopRecommendation } from '../scraper/calculator.js';
 import { renderQuotaText, wantsText, wantsColor } from './text-render.js';
-import { PROVIDER_ORDER } from '../types/quota.js';
+import {
+  cardRank,
+  deleteCard,
+  findCard,
+  loadRegistry,
+  saveCard,
+} from '../cards/registry.js';
+import { scrapeCardNow } from '../scraper/collect.js';
+import { sortByRoutingPriority } from '../scraper/calculator.js';
+import type { CardLoadError, LoadedCard } from '../cards/registry.js';
 import type {
   NormalizedQuotaBucket,
   Provider,
@@ -43,16 +53,10 @@ const HOST = process.env.API_HOST ?? '127.0.0.1';
 // Zod schema for runtime validation — protects the API from a corrupted
 // state.json if the scraper crashes mid-write.
 // -----------------------------------------------------------------------------
-const PROVIDER_ENUM = z.enum([
-  'anthropic',
-  'openai',
-  'gemini',
-  'moonshot',
-  'minimax',
-  'deepseek',
-  'deepinfra',
-  'qwen',
-]);
+// Provider ids are validated against the card registry, not a hardcoded enum:
+// cards are data (config/cards/*.json), so the enum would be a second source of
+// truth that drifts every time a card is added.
+const ProviderId = z.string().min(1).max(64);
 
 const ResetCreditSchema = z.object({
   id: z.string(),
@@ -66,7 +70,7 @@ const ResetCreditSchema = z.object({
 
 const BucketSchema = z.object({
   model_id: z.string(),
-  provider: PROVIDER_ENUM,
+  provider: ProviderId,
   account: z.string().optional(),
   display_name: z.string().optional(),
   window_label: z.string().optional(),
@@ -113,7 +117,7 @@ const ModelUsageSchema = z.object({
 });
 
 const ProviderModelsSchema = z.object({
-  provider: PROVIDER_ENUM,
+  provider: ProviderId,
   account: z.string().optional(),
   catalog: z.array(z.string()),
   catalog_source: z.enum(['provider_api', 'local_config', 'observed', 'mixed', 'unavailable']),
@@ -156,10 +160,7 @@ function readState(): QuotaStateFile | null {
   }
 }
 
-const providerRank = (p: Provider): number => {
-  const i = PROVIDER_ORDER.indexOf(p);
-  return i === -1 ? PROVIDER_ORDER.length : i;
-};
+const providerRank = (p: Provider): number => cardRank(p);
 
 function sortProviders(providers: Iterable<Provider>): Provider[] {
   return [...new Set(providers)].sort((a, b) => providerRank(a) - providerRank(b));
@@ -180,6 +181,9 @@ function group(buckets: NormalizedQuotaBucket[], pred: (b: NormalizedQuotaBucket
 
 interface DashboardResponse {
   state: QuotaStateFile;
+  /** Card specs travel with the data so the UI can render without a rebuild. */
+  cards: LoadedCard[];
+  card_errors: CardLoadError[];
   summary: {
     total_buckets: number;
     total_providers: number;
@@ -195,14 +199,24 @@ interface DashboardResponse {
 }
 
 function buildResponse(state: QuotaStateFile): DashboardResponse {
-  const buckets = state.buckets;
+  const registry = loadRegistry();
+  const hidden = new Set(registry.cards.filter((c) => !c.shown).map((c) => c.id));
+
+  // Hidden cards are templates, not capacity: exclude them (and any stale
+  // buckets they left in the snapshot) from every summary number.
+  const buckets = state.buckets.filter((b) => !hidden.has(b.provider));
+  const models = (state.provider_models ?? []).filter((m) => !hidden.has(m.provider));
+
   const allProviders = sortProviders([
+    ...registry.cards.filter((c) => c.shown).map((c) => c.id),
     ...buckets.map((b) => b.provider),
-    ...(state.provider_models ?? []).map((m) => m.provider),
+    ...models.map((m) => m.provider),
   ]);
 
   return {
     state,
+    cards: registry.cards,
+    card_errors: registry.errors,
     summary: {
       total_buckets: buckets.length,
       total_providers: allProviders.length,
@@ -258,16 +272,105 @@ app.get('/', textHandler);
 
 app.get('/api/health', (_req, res) => {
   const state = readState();
+  const registry = loadRegistry();
+  const cardIds = new Set(registry.cards.map((c) => c.id));
+  const bucketProviders = new Set((state?.buckets ?? []).map((b) => b.provider));
+
   res.json({
     ok: true,
     state_present: Boolean(state),
     state_generated_at: state?.generated_at ?? null,
     bucket_count: state?.buckets.length ?? 0,
-    provider_count: state ? new Set(state.buckets.map((b) => b.provider)).size : 0,
+    provider_count: bucketProviders.size,
     model_count: state
       ? (state.provider_models ?? []).reduce((s, m) => s + m.usage.length, 0)
       : 0,
+    card_count: registry.cards.length,
+    card_errors: registry.errors,
+    // Data with no card (still rendered generically) and cards with no data
+    // (JSON-only cards, or a scraper that has not ticked yet).
+    orphan_providers: [...bucketProviders].filter((p) => !cardIds.has(p)),
+    cards_without_data: registry.cards
+      .filter((c) => c.shown)
+      .map((c) => c.id)
+      .filter((id) => !bucketProviders.has(id)),
+    cards_hidden: registry.cards.filter((c) => !c.shown).length,
+    card_dirs: registry.dirs,
   });
+});
+
+// -----------------------------------------------------------------------------
+// Card CRUD — cards are JSON files; these endpoints edit them in place.
+// -----------------------------------------------------------------------------
+app.get('/api/cards', (_req, res) => {
+  const registry = loadRegistry();
+  res.json({
+    cards: registry.cards,
+    errors: registry.errors,
+    dirs: registry.dirs,
+    writable_dir: registry.dirs[registry.dirs.length - 1],
+  });
+});
+
+// PUT is an upsert: the id in the path is authoritative, so a card can never be
+// written to a different file than the one requested.
+app.put('/api/cards/:id', (req, res) => {
+  const result = saveCard(req.params.id, req.body);
+  if (!result.ok) {
+    return res.status(result.status).json({ ok: false, errors: result.errors });
+  }
+  res.status(result.status).json({ ok: true, card: result.card, errors: [] });
+});
+
+app.delete('/api/cards/:id', (req, res) => {
+  const result = deleteCard(req.params.id);
+  if (!result.ok) {
+    return res.status(result.status).json({ ok: false, errors: result.errors });
+  }
+  res.json({ ok: true, file: result.file, errors: [] });
+});
+
+// Scrape one card on demand and merge its fresh buckets into state.json, so
+// the dashboard grid updates immediately instead of waiting for the next
+// daemon tick. Only quota buckets are replaced — provider_models (catalogs /
+// local log rollups) refresh on the next full tick. `generated_at` stays the
+// daemon's tick time: a per-card refresh does not make the rest of the
+// snapshot fresher than it is.
+app.post('/api/cards/:id/refresh', async (req, res) => {
+  const card = findCard(req.params.id);
+  if (!card) return res.status(404).json({ ok: false, errors: [`no card "${req.params.id}"`] });
+
+  const state = readState();
+  if (!state) {
+    return res.status(503).json({ ok: false, errors: ['state.json not found or invalid'] });
+  }
+  if (state.source !== 'real') {
+    return res
+      .status(409)
+      .json({ ok: false, errors: ['state snapshot is mock — refresh is disabled in mock mode'] });
+  }
+
+  try {
+    const fresh = await scrapeCardNow(card);
+    // Read-modify-write against the daemon's file: the atomic rename keeps a
+    // reader from seeing a torn write; a daemon tick landing mid-merge is
+    // re-written on its next pass (60s), which is acceptable for a local tool.
+    const current = readState() ?? state;
+    current.buckets = sortByRoutingPriority([
+      ...current.buckets.filter((b) => b.provider !== card.id),
+      ...fresh,
+    ]);
+    const tmp = `${STATE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(current, null, 2), 'utf8');
+    fs.renameSync(tmp, STATE_PATH);
+    res.json({ ok: true, buckets: fresh.length, errors: [] });
+  } catch (err) {
+    console.error(`[api] refresh ${card.id} failed:`, err);
+    res.status(500).json({
+      ok: false,
+      errors: [`scrape failed: ${err instanceof Error ? err.message : String(err)}`],
+    });
+  }
 });
 
 app.listen(PORT, HOST, () => {
@@ -276,5 +379,10 @@ app.listen(PORT, HOST, () => {
   console.log(`[api]   GET /api/quota-state?format=text (text table)`);
   console.log(`[api]   GET /api/summary                (text table alias)`);
   console.log(`[api]   GET /api/health`);
+  console.log(`[api]   GET /api/cards`);
+  console.log(`[api]   PUT /api/cards/:id    (create/update one card JSON)`);
+  console.log(`[api]   DELETE /api/cards/:id (remove one card JSON)`);
+  console.log(`[api]   POST /api/cards/:id/refresh (re-scrape one card into state.json)`);
+  console.log(`[api]   cards → ${loadRegistry().dirs.join(', ')}`);
   console.log(`[api]   state.json → ${STATE_PATH}`);
 });
