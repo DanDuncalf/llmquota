@@ -148,33 +148,41 @@ function CurrencyBody({
   caption?: string;
 }) {
   const { balance_usd: balance, spend_usd: spend, spend_period_label: period } = bucket.capacity;
+  const hasBalance = typeof balance === 'number';
+  const hasSpend = typeof spend === 'number';
   return (
     <>
-      {typeof balance === 'number' && typeof spend === 'number' ? (
+      {hasBalance && hasSpend ? (
         <>
           <div className="flex items-baseline justify-between">
             <span className="stat-num text-blue-300 text-lg">{formatUsd(balance)}</span>
             <span className="text-[10px] uppercase tracking-wider text-zinc-500">available</span>
           </div>
-          <div className="mt-1 flex items-baseline justify-between text-[11px] text-zinc-400">
-            <span className="text-zinc-500">{period ? `spent (${period})` : 'spent'}</span>
-            <span className="font-mono text-zinc-300">{formatUsd(spend)}</span>
+          {/* Label and amount stay on one line: a lone right-aligned value
+             under the balance reads as belonging to the balance above, not to
+             the period it measures (DeepInfra's balance + spend window). */}
+          <div className="mt-1 truncate text-[11px]" title={caption}>
+            <span className="text-zinc-500">{period ? `spent ${period}` : 'spent'}</span>
+            <span className="font-mono text-zinc-300"> · {formatUsd(spend)}</span>
+            {caption && <span className="text-zinc-600"> · {caption}</span>}
           </div>
         </>
       ) : (
-        <div className="flex items-baseline justify-between">
-          <span className="stat-num text-blue-300 text-lg">
-            {formatUsd(typeof balance === 'number' ? balance : spend)}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-            {typeof balance === 'number' ? 'balance' : 'spent'}
-          </span>
-        </div>
-      )}
-      {caption && (
-        <div className="mt-0.5 text-[10px] text-zinc-500 truncate" title={caption}>
-          {caption}
-        </div>
+        <>
+          <div className="flex items-baseline justify-between">
+            <span className="stat-num text-blue-300 text-lg">
+              {formatUsd(hasBalance ? balance : spend)}
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500">
+              {hasBalance ? 'balance' : 'spent'}
+            </span>
+          </div>
+          {caption && (
+            <div className="mt-0.5 text-[10px] text-zinc-500 truncate" title={caption}>
+              {caption}
+            </div>
+          )}
+        </>
       )}
     </>
   );

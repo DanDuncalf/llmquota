@@ -19,7 +19,8 @@
 // 268_525 tokens ≈ 76.5¢ and the API reports cost: 77.
 //
 // The checklist endpoint returns the account's Stripe balance (prepaid credit).
-// A negative `stripe_balance` means available credit (e.g. -500 = $5.00 credit).
+// A negative `stripe_balance` means available credit, in USD dollars
+// (verified live: -4.93 = $4.93 credit).
 // =============================================================================
 
 import type { RawBucket } from './base.js';
@@ -45,8 +46,8 @@ interface UsageResponse {
 
 /**
  * The payment/checklist endpoint returns account billing status.
- * `stripe_balance` is in cents and negative means available credit
- * (e.g. -500 = $5.00 prepaid credit remaining).
+ * `stripe_balance` is in USD dollars and negative means available credit
+ * (verified live: -4.93 = $4.93 prepaid credit remaining).
  */
 interface ChecklistResponse {
   stripe_balance?: number;
@@ -172,10 +173,9 @@ export async function scrapeDeepInfra(): Promise<RawBucket[]> {
         spend_usd: spendUsd,
         spend_period_label: month,
         balance_usd: balanceUsd,
-        limit_label: [
-          balanceUsd !== undefined ? `$${balanceUsd.toFixed(2)} available` : undefined,
-          isCurrent ? 'month to date' : 'last active month',
-        ].filter(Boolean).join(' · '),
+        // No balance repetition here: the UI shows the balance as the hero
+        // number, so the caption only qualifies which month the spend is for.
+        limit_label: isCurrent ? 'month to date' : 'last active month',
       },
       last_updated: new Date().toISOString(),
       notes:
