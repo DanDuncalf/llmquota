@@ -44,7 +44,7 @@ KIMI  (moonshot)                    3 windows           [HIGH]
   backup balance  METERED     $487.30 balance · $1,000.00 reserved · $5.13 used 2026-10
 
 DEEPINFRA  (deepinfra)              1 window            [METERED]
-  balance & spend METERED     $4.93 available
+  balance & spend METERED     $3.18 prepaid credits
                               spent 2026.11 · $1.75 · month to date
 
 DEEPSEEK  (deepseek)                1 window            [METERED]

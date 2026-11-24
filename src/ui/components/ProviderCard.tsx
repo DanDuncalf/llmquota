@@ -156,7 +156,9 @@ function CurrencyBody({
         <>
           <div className="flex items-baseline justify-between">
             <span className="stat-num text-blue-300 text-lg">{formatUsd(balance)}</span>
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500">available</span>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500">
+              prepaid credits
+            </span>
           </div>
           {/* Label and amount stay on one line: a lone right-aligned value
              under the balance reads as belonging to the balance above, not to

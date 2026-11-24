@@ -20,7 +20,9 @@
 //
 // The checklist endpoint returns the account's Stripe balance (prepaid credit).
 // A negative `stripe_balance` means available credit, in USD dollars
-// (verified live: -4.93 = $4.93 credit).
+// (verified live: -4.93 = $4.93 credit). The credit is drawn down at the
+// monthly invoice, and the dashboard's "available" figure subtracts the
+// un-invoiced usage carried in `recent` (credit 4.93 − recent 1.75 = $3.18).
 // =============================================================================
 
 import type { RawBucket } from './base.js';
@@ -51,6 +53,8 @@ interface UsageResponse {
  */
 interface ChecklistResponse {
   stripe_balance?: number;
+  /** Un-invoiced usage accrued since the last invoice (USD dollars). */
+  recent?: number;
   suspended?: boolean;
   [key: string]: unknown;
 }
@@ -131,15 +135,21 @@ export async function scrapeDeepInfra(): Promise<RawBucket[]> {
   }
   const top = [...byModel.entries()].sort((a, b) => b[1] - a[1])[0];
 
-  // Account balance (prepaid credit) from payment/checklist.
+  // Account balance from payment/checklist. The dashboard nets un-invoiced
+  // usage out of the credit: the credit is only drawn down when the monthly
+  // invoice posts, so "available" = credit − recent. Verified against
+  // deepinfra.com/dash: credit -4.93, recent 1.75 → $3.18 shown on the site.
   let balanceUsd: number | undefined;
   try {
     const checklist = await httpJson<ChecklistResponse>(CHECKLIST_URL, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    // stripe_balance is in USD dollars (e.g. -4.94 = $4.94 available credit).
+    // stripe_balance is in USD dollars (negative = available credit).
     if (typeof checklist.stripe_balance === 'number') {
-      balanceUsd = checklist.stripe_balance < 0 ? Math.round(-checklist.stripe_balance * 100) / 100 : 0;
+      const credit = checklist.stripe_balance < 0 ? -checklist.stripe_balance : 0;
+      const pending =
+        typeof checklist.recent === 'number' && checklist.recent > 0 ? checklist.recent : 0;
+      balanceUsd = Math.round(Math.max(0, credit - pending) * 100) / 100;
     }
   } catch {
     /* non-fatal — balance just won't be shown */
@@ -158,7 +168,7 @@ export async function scrapeDeepInfra(): Promise<RawBucket[]> {
     /* non-fatal */
   }
 
-  const balanceNote = balanceUsd !== undefined ? ` · $${balanceUsd.toFixed(2)} available` : '';
+  const balanceNote = balanceUsd !== undefined ? ` · $${balanceUsd.toFixed(2)} prepaid credits` : '';
 
   return [
     {
