@@ -431,6 +431,40 @@ function buildBuckets(
 }
 
 export async function scrapeClaude(): Promise<RawBucket[]> {
+  const cache = readCache();
+  const now = Date.now();
+  const cacheIsFresh = !!(
+    cache?.usage &&
+    hasWindows(cache.usage) &&
+    cacheAgeMs(cache) <= CACHE_MAX_AGE_MS
+  );
+  const retryAt = cache?.retry_at ? Date.parse(cache.retry_at) : NaN;
+
+  // 1. Still backing off from a previous failure (429 or a dead login) — skip
+  //    the network entirely. This check must run before getOauthToken(): an
+  //    expired refresh token would otherwise be re-submitted to the OAuth
+  //    endpoint on every tick (once a minute from the daemon), which the
+  //    backoff exists to prevent.
+  if (cache && Number.isFinite(retryAt) && retryAt > now) {
+    if (cacheIsFresh && cache?.usage) {
+      return buildBuckets(
+        cache.usage,
+        cache.source,
+        cache.fetched_at,
+        `cached ${shortTime(cache.fetched_at)} · rate limited`,
+      );
+    }
+    return [
+      unavailableBucket({
+        model_id: 'claude-usage',
+        provider: 'anthropic',
+        display_name: 'Claude',
+        tier_type: 'rolling_window',
+        reason: `${cache.last_error ?? 'Claude usage rate limited'} — retrying after ${shortTime(cache.retry_at!)}`,
+      }),
+    ];
+  }
+
   let oauth: string | null = null;
   let authProblem: string | null = null;
   try {
@@ -456,36 +490,6 @@ export async function scrapeClaude(): Promise<RawBucket[]> {
         window_label: 'plan windows',
         tier_type: 'rolling_window',
         reason,
-      }),
-    ];
-  }
-
-  const cache = readCache();
-  const now = Date.now();
-  const cacheIsFresh = !!(
-    cache?.usage &&
-    hasWindows(cache.usage) &&
-    cacheAgeMs(cache) <= CACHE_MAX_AGE_MS
-  );
-  const retryAt = cache?.retry_at ? Date.parse(cache.retry_at) : NaN;
-
-  // 1. Still backing off from a 429 — skip the network entirely.
-  if (cache && Number.isFinite(retryAt) && retryAt > now) {
-    if (cacheIsFresh && cache?.usage) {
-      return buildBuckets(
-        cache.usage,
-        cache.source,
-        cache.fetched_at,
-        `cached ${shortTime(cache.fetched_at)} · rate limited`,
-      );
-    }
-    return [
-      unavailableBucket({
-        model_id: 'claude-usage',
-        provider: 'anthropic',
-        display_name: 'Claude',
-        tier_type: 'rolling_window',
-        reason: `${cache.last_error ?? 'Claude usage rate limited'} — retrying after ${shortTime(cache.retry_at!)}`,
       }),
     ];
   }
