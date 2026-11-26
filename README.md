@@ -116,7 +116,7 @@ Open <http://127.0.0.1:5173> to see the dashboard. Cards with a credential show
 live data; the rest say what they need. To see it with demo data and no keys,
 run `npm run dev:mock`. To keep it running in the background, see
 [`docs/operations.md`](docs/operations.md#running-the-scraper-as-a-service)
-(systemd, cron, or a Windows logon task).
+(systemd, launchd, cron, or a Windows logon task).
 
 **Credentials.** Log into the CLIs you already use (`claude`, `codex login`,
 Kimi Code). Then set API keys in `.env` for key-based providers (MiniMax,
@@ -127,6 +127,32 @@ Google account. Every provider's details and quirks are in
 > **macOS:** Claude Code keeps its token in the Keychain, not in
 > `~/.claude/.credentials.json`. Set `CLAUDE_SESSION_KEY` in `.env` instead
 > (see [option B](docs/setup.md#claude--needs-one-manual-step)).
+
+## Quick start (macOS / Linux / WSL)
+
+```bash
+git clone https://github.com/DanDuncalf/llmquota
+cd llmquota
+npm ci
+npm run dev:mock      # zero-config demo with drifting fake data
+```
+
+Then `npm run dev` for real data. Cards for any provider CLI you're logged
+into on that machine — Claude Code, Codex, Kimi Code, Qwen, Gemini — fill in
+automatically: credentials are discovered under `~`, nothing to configure.
+API-key-only providers (MiniMax, DeepSeek, DeepInfra) want entries in `.env`
+(`cp .env.example .env`). Every provider's details are in
+[`docs/setup.md`](docs/setup.md); on WSL, credentials live in the Windows
+home — see [`docs/setup.md` → Running under
+WSL2](docs/setup.md#running-under-wsl2-or-plain-linux) for the symlink setup.
+
+To run at login instead of in a terminal, `scripts/` ships a systemd user
+unit ([`scripts/llmquota.service`](scripts/llmquota.service)) for Linux/WSL
+and a launchd agent
+([`scripts/com.llmquota.dashboard.plist`](scripts/com.llmquota.dashboard.plist))
+for macOS — both start the scraper daemon and API server via
+[`scripts/run-service.sh`](scripts/run-service.sh). See
+[`docs/operations.md#running-the-scraper-as-a-service`](docs/operations.md#running-the-scraper-as-a-service).
 
 ## Connect it to your agents
 
@@ -241,7 +267,7 @@ becomes `recommended_next`. The rules are in
 | [`docs/cards.md`](docs/cards.md) | Card JSON spec, template library, editing cards in the UI |
 | [`docs/usage.md`](docs/usage.md) | Where token usage and model catalogs come from, and their caveats |
 | [`docs/api.md`](docs/api.md) | HTTP API and the `curl` text report |
-| [`docs/operations.md`](docs/operations.md) | npm scripts, running as a service (cron, systemd, Windows logon task), verification |
+| [`docs/operations.md`](docs/operations.md) | npm scripts, running as a service (systemd, launchd, cron, Windows logon task), verification |
 | [`docs/architecture.md`](docs/architecture.md) | Data flow, module layout, state contract, adding scrapers |
 | [`AGENTS.md`](AGENTS.md) | Rules for coding agents working on this repo |
 

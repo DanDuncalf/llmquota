@@ -43,11 +43,31 @@ Verification for any non-trivial change: `npm run typecheck` must pass.
 
 ## Running the scraper as a service
 
+Ready-made service definitions ship in `scripts/` — install steps are in each
+file's header comment:
+
+- **Linux / WSL (systemd):** [`../scripts/llmquota.service`](../scripts/llmquota.service),
+  a user unit. On WSL, systemd must be enabled in `/etc/wsl.conf` (see
+  [`setup.md#running-under-wsl2-or-plain-linux`](setup.md#running-under-wsl2-or-plain-linux)).
+- **macOS (launchd):** [`../scripts/com.llmquota.dashboard.plist`](../scripts/com.llmquota.dashboard.plist),
+  a LaunchAgent in `~/Library/LaunchAgents`.
+- **Windows:** the logon task [below](#windows-logon-task-this-machine).
+
+The systemd unit and the launchd agent both run
+[`../scripts/run-service.sh`](../scripts/run-service.sh), which starts the
+scraper daemon and the API server (:8787) — the same pair the Windows
+`run-service.cmd` starts via `npm run dev`, minus the Vite dev UI, which is
+dev-only. Like the Windows script, it refuses to start a second copy when
+:8787 is already served.
+
+Or roll your own — cron with a one-shot scrape:
+
 ```cron
 * * * * * cd /path/to/quota-dashboard && /usr/bin/env node --import tsx src/scraper/index.ts --once >> /tmp/quota-scraper.log 2>&1
 ```
 
-Or a systemd user unit (`~/.config/systemd/user/quota-scraper.service`):
+Or a minimal systemd user unit (`~/.config/systemd/user/quota-scraper.service`;
+the packaged `llmquota.service` adds install comments and runs the API too):
 
 ```ini
 [Unit]

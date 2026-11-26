@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  =============================================================================
+  com.llmquota.dashboard.plist — launchd LaunchAgent for the llmquota dashboard.
+  macOS counterpart of scripts/llmquota.service (systemd) and
+  scripts/run-service.cmd (Windows).
+
+  Runs scripts/run-service.sh, which starts the scraper daemon and the API
+  server (:8787). The Vite dev UI is dev-only and not part of the service.
+
+  Install:
+    cp scripts/com.llmquota.dashboard.plist ~/Library/LaunchAgents/
+    # replace every /Users/YOU/llmquota below with your checkout path
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.llmquota.dashboard.plist
+
+  Stop / unload:
+    launchctl bootout gui/$(id -u)/com.llmquota.dashboard
+
+  Logs: data/service.log in the checkout (StandardOutPath below).
+
+  PATH: launchd starts agents with a minimal PATH, and node from nvm or
+  Homebrew is not on it. The EnvironmentVariables/PATH below covers Homebrew
+  (Apple Silicon + Intel); for nvm, prepend your node bin dir, e.g.
+  /Users/YOU/.nvm/versions/node/v22.0.0/bin — or symlink node into
+  /usr/local/bin. .env is loaded by the app itself (src/env.ts).
+
+  KeepAlive uses SuccessfulExit=false: a clean exit (run-service.sh found
+  :8787 already served, so another copy owns the port) is NOT restarted,
+  avoiding a relaunch loop; a crash is.
+  =============================================================================
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.llmquota.dashboard</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/YOU/llmquota/scripts/run-service.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/YOU/llmquota</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>NODE_ENV</key>
+		<string>production</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/YOU/llmquota/data/service.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/YOU/llmquota/data/service.log</string>
+</dict>
+</plist>

@@ -1,0 +1,46 @@
+# =============================================================================
+# llmquota.service — systemd *user* unit for the llmquota dashboard.
+# Linux, and WSL2 with systemd enabled. macOS: use the launchd plist instead
+# (scripts/com.llmquota.dashboard.plist); Windows: scripts/run-service.cmd.
+#
+# Runs scripts/run-service.sh, which starts the scraper daemon and the API
+# server (:8787). The Vite dev UI is dev-only and not part of the service.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp scripts/llmquota.service ~/.config/systemd/user/
+#   # edit the two /home/YOU/llmquota paths below to your checkout
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now llmquota
+#   loginctl enable-linger "$USER"   # keep it running after logout
+#
+# Logs:    journalctl --user -u llmquota -f
+# Stop:    systemctl --user stop llmquota
+#
+# WSL: needs systemd — put this in /etc/wsl.conf, then `wsl --shutdown` from
+# Windows and reopen:
+#   [boot]
+#   systemd=true
+#
+# PATH: systemctl --user starts with a minimal PATH. If node comes from nvm
+# or another version manager, uncomment Environment=PATH below and point it
+# at that bin dir. .env is loaded by the app itself (src/env.ts).
+# =============================================================================
+[Unit]
+Description=llmquota dashboard (scraper daemon + API on :8787)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/YOU/llmquota
+# NODE_ENV is informational; the app reads .env on its own.
+Environment=NODE_ENV=production
+# Uncomment and adjust if node is not in the default PATH (e.g. nvm):
+# Environment=PATH=/home/YOU/.nvm/versions/node/v22.0.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/YOU/llmquota/scripts/run-service.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

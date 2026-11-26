@@ -191,6 +191,51 @@ kimi-k2.x, glm-5.x, MiniMax-M2.x). As of writing there is no discoverable usage
 API for it, so the quota window shows ⚠️ UNAVAILABLE while its model catalog and
 token usage come from local config + logs.
 
+## Running under WSL2 (or plain Linux)
+
+Everything runs under WSL2/Linux with no code changes — `npm run typecheck`,
+`npm run cards:check`, `npm run ui:build`, `npm run scrape:mock`, the API
+endpoints and a real scrape all pass as-is.
+
+**The dual-home problem.** Your credentials live in the Windows home
+(`C:\Users\<name>\.claude`, `.codex`, …), but WSL has its own home and the
+scrapers look under `~`. Point the WSL home at the Windows copies with
+symlinks through `/mnt/c`:
+
+```bash
+ln -s /mnt/c/Users/<name>/.claude ~/.claude
+ln -s /mnt/c/Users/<name>/.claude.json ~/.claude.json
+ln -s /mnt/c/Users/<name>/.codex ~/.codex
+ln -s /mnt/c/Users/<name>/.qwen ~/.qwen
+ln -s /mnt/c/Users/<name>/.gemini-profiles ~/.gemini-profiles
+ln -s /mnt/c/Users/<name>/.kimi ~/.kimi
+ln -s /mnt/c/Users/<name>/.kimi-code ~/.kimi-code
+```
+
+`.env` can be symlinked into the WSL checkout the same way if you want one
+copy. Prefer symlinks over the `*_PATH` env overrides: the local usage-log
+scan (`~/.claude/projects`, `~/.codex/sessions`, `~/.kimi-code/sessions`) has
+no env override, and symlinks cover it too.
+
+**Gotchas (verified during testing):**
+
+- **One writer at a time.** Claude/Kimi token self-refresh writes back through
+  `/mnt/c` and works — but never run the Windows daemon and a WSL instance at
+  the same time. Two writers can clobber the same token files.
+- **Don't share `node_modules`.** esbuild ships platform-specific native
+  binaries. Run a fresh `npm ci` inside WSL in a Linux-native path (`~/…`),
+  never into `/mnt/c/…` or `/mnt/e/…` — an install there would replace the
+  Windows binaries.
+- **WSL2 idle-shutdown kills `nohup`'d background processes** between separate
+  `wsl --` invocations. For a persistent service use the systemd user unit
+  ([`scripts/llmquota.service`](../scripts/llmquota.service)); WSL runs systemd
+  when `[boot] systemd=true` is set in `/etc/wsl.conf`.
+- **Killing the dev server by pattern:** `pkill -f "tsx watch src/server"`
+  from a `bash -c` wrapper matches the wrapper itself. Kill by PID, or use a
+  bracket pattern: `pkill -f "[t]sx watch src/server"`.
+- **Mock mode just works.** `npm run dev:mock` is zero-config; without
+  credentials, real scrapes degrade gracefully to UNAVAILABLE cards by design.
+
 ## Secrets
 
 - `.env` is gitignored and must stay that way. `.env.example` contains only
