@@ -1,0 +1,6 @@
+# Service scripts must keep LF even on Windows checkouts (core.autocrlf):
+# run-service.sh executes under WSL/Linux/macOS shells, and systemd/launchd
+# unit files reject CRLF.
+scripts/*.sh      text eol=lf
+scripts/*.service text eol=lf
+scripts/*.plist   text eol=lf
